@@ -37,3 +37,7 @@
    - [Rust-Lang-Get-started](https://www.rust-lang.org/learn/get-started)
 
 ## 2. MacOS 平台的安装
+
+1. 具体过程可参考：
+   - [Rust 语言环境安装：Linux 开发环境（Ubuntu 18）](https://learnku.com/rust/wikis/29019)
+   - [rust-lang get-started](https://www.rust-lang.org/learn/get-started)

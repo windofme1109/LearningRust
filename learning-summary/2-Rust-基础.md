@@ -32,3 +32,16 @@
 #### 5. cargo update
 
 1. 更新一个包
+
+
+## 2. Rust 语言基础
+
+### 表达式与语句
+
+#### 1. 参考资料
+
+1. [Rust的语句与表达式](https://www.cnblogs.com/Davirain/p/13097120.html)
+
+2. [Rust 参考手册 - 语句](https://minstrel1977.gitee.io/rust-reference/statements.html)
+
+3. [Rust 参考手册 - 表达式](https://minstrel1977.gitee.io/rust-reference/expressions.html)

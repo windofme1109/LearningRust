@@ -245,10 +245,16 @@ fn main() {
     // 比 while 循环简洁
     // 直接取出 a 中的元素，因此不需要维护索引和数组的长度
     // iter 函数返回数组的迭代器，可以用 for in 遍历
+    //
     for element in a.iter() {
         println!("for the value is: {}",element);
     }
 
+
+    // 标准库提供了一个 Range 类型，可以生成指定区间的数字
+    // 接收一个开始数字和一个结束数字，Range 生成他们之间的数字（不包括结束数字）
+    // 形式是：(start..end)，例如：(1..4) 生成 1、2、3 这三个数字，当然，Range 返回的是要给迭代器，可以使用 for in 循环
+    // rev 函数可以反转 range 生成的数字的顺序
     // 使用 for 实现 while 循环的倒计时案例
     for count in (1..4).rev() {
         println!("{}!", count);

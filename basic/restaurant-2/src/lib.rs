@@ -4,6 +4,7 @@
 
 // mod front_of_house 后使用分号而不是代码块会让Rust前往与当前模块同名的文件中加载模块内容
 // 注意，如果在 lib.rs 或者是 main.rs 中定义模块（如下所示），那么其位置是与定义模块的的文件同级的位置
+// 使用在其他文件或文件夹中的模块时，需要显式注册这个模块
 mod front_of_house;
 mod back_of_house;
 

@@ -1,4 +1,6 @@
 .idea
+.DS_Store
+.vscode
 # 忽略编译结果文件夹
 **/target
 

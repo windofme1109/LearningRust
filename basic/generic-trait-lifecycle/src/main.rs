@@ -135,9 +135,9 @@ pub fn notify(item: impl Summary) {
 // 通过+语法来指定多个trait约束
 // 假如 notify 函数需要在调用 summarize 方法的同时显示格式化后的item
 // 那么 item 就必须实现两个不同的 trait：Summary 和 Display。我们可以使用+语法来实现
-pub fn notify(item: impl Summary + Display) {}
+// pub fn notify(item: impl Summary + Display) {}
 // 完整形式（泛型约束）
-pub fn notify<T: Summary + Display>(item: T) {}
+// pub fn notify<T: Summary + Display>(item: T) {}
 
 // 使用where从句来简化trait约束
 
@@ -146,11 +146,11 @@ pub fn notify<T: Summary + Display>(item: T) {}
 // 这往往会使函数签名变得难以理解。为了解决这一问题，Rust提供了一个替代语法
 // 使我们可以在函数签名之后使用 where 从句来指定trait约束
 // 可以使用 where 进行改写下面的函数
-fn some_function<T: Display + Clone, U: Clone + Debug>(t: T, u: U) -> i32 {}
+// fn some_function<T: Display + Clone, U: Clone + Debug>(t: T, u: U) -> i32 {}
 
 // 使用where语句改写为：
-fn some_function<T, U>(t: T, u: U) -> i32
-where T: Display + Clone, U: Clone + Debug {}
+// fn some_function<T, U>(t: T, u: U) -> i32
+// where T: Display + Clone, U: Clone + Debug {}
 
 // 返回实现了 trait 的类型
 // 我们同样可以在返回值中使用 impl Trait 语法，用于返回某种实 现了 trait 的类型
@@ -171,6 +171,115 @@ fn return_summarizable() -> impl Summary {
 }
 
 // 你只能在返回一个类型时使用impl Trait
+// 例如：下面这段代码中返回的NewsArticle和Tweet都实现了impl Summary，却依然无法通过编译
+// error[E0308]: `if` and `else` have incompatible types
+// fn returns_summarizable(switch: bool) -> impl Summary {
+//     if switch {
+//         NewsArticle {
+//             headline: String::from("Penguins win the Stanley CupChampionship!"),
+//             location: String::from("Pittsburgh, PA, USA"),
+//             author: String::from("Iceburgh"),
+//             content: String::from("The Pittsburgh Penguins once again are the best hockey team in the NHL."),
+//         }
+//     } else {
+//         Tweet {
+//             username: String::from("horse_ebooks"),
+//             content: String::from("of course, as you probably already know,people"),
+//             reply: false,
+//             retweet: false,
+//         }
+//     }
+// }
+
+// 使用 trait 优化 largest 函数
+// 直接指定泛型，编译会通不过
+// 函数体内部使用了大于运算符，而直接编译，就会提示：binary operation `>` cannot be applied to type `T`
+// 而想要使用大于（>）运算符来比较两个 T 类型的值
+// 由于这一运算符被定义为标准库 trait std::cmp::PartialOrd 的一个默认方法
+// 所以我们需要在 T 的 trait 约束中指定 PartialOrd，才能够使 largest 函数用于任何可比较类型的切片上
+// 由于 PartialOrd 位于预导入模块内，所以我们不需要手动将其引入作用域
+// 将 T 的 trait 约束为 PartialOrd，然后进行编译，我们发现，还是有错误：
+// error[E0508]: cannot move out of type `[T]`, a non-copy slice
+// 意思是我们不能将 非copy 切片的 [T] 移动出来
+// i32 或 char 这样拥有确定大小并被存储在栈上的类型，已经实现了 Copy trait
+// 但是当我们尝试将 largest 函数泛型化时，list 参数中的类型有可能是没有实现 Copy trait 的
+// 这也就意味着，我们无法将 list[0] 中的值移出并绑定到 largest 变量上，进而会导致上面的错误
+// 解决方法就是给泛型 T 的 trait 再次添加一个约束 Copy，确保这个函数只会被那些实现了 Copy trait 的类型所调用
+fn largest<T: PartialOrd + Copy>(list: &[T]) -> T {
+    let mut largest = list[0];
+
+
+    for &item in list {
+        if item > largest {
+            largest = item;
+        }
+    }
+
+    largest
+}
+
+
+// todo largest 函数的另外实现方式：是返回切片中T值的引用。假如将返回类型从 T 修改为 &T，并修改函数体使其返回一个引用，那么我们就不再需要 Clone 或 Copy 来进行 trait 约束
+
+
+
+
+// 使用trait约束来有条件地实现方法
+// 通过在带有泛型参数的 impl 代码块中使用 trait 约束，我们可以单独为实现了指定 trait 的类型编写方法
+
+// 使用 impl 实现函数，如果指定了泛型参数 T，如果给 T 指定了 trait 约束，那么这个方式就和指定的 trait 绑定了
+// 也就是说只有实现了指定的 trait 的类型才能拥有这个方法
+//
+struct Pair<T> {
+    x: T,
+    y: T,
+}
+
+impl<T> Pair<T> {
+    // 返回 Pair 的实例
+    fn new(x: T, y: T) -> Self {
+        Pair {
+            x,
+            y
+        }
+    }
+}
+
+// 下面的泛型 T 约束为 Display 和 PartialOrd 两个 trait
+// 也就是说，只有实现了 Display 和 PartialOrd 这两个 trait 的 Pair 实例才能使用 cmp_display 方法
+// 其他类型的 Pair 实例使用不了 cmp_display
+impl<T: Display + PartialOrd> Pair<T> {
+    fn cmp_display(&self) {
+        if self.x > self.y {
+            println!("The largest member is x = {}", self.x);
+        } else {
+            println!("The largest member is y = {}", self.y);
+        }
+    }
+}
+
+// 覆盖实现 blanket implementation
+
+// 同样可以为实现了某个 trait 的类型有条件地实现另一个 trait
+// 对满足 trait 约束的所有类型实现 trait 也被称作覆盖实现 （blanket implementation）
+// 这一机制被广泛地应用于 Rust 标准库中。例如 ， 标准库对所有满足 Display trait 约束的类型实现了 ToString trait。
+// 标准库中的 impl 代码块如下所示：
+// impl<T: Display> ToString for T {
+// // --略
+// --
+// }
+
+// 给满足了 Display trait 的约束的 Pair 类型基础上再实现 ToString trait
+impl<T: Display> ToString for Pair<T> {
+    fn to_string(&self) -> String {
+        todo!()
+    }
+}
+
+// 由于标准库提供了上面的覆盖实现，所以我们可以为任何实现了 Display trait 的类型调用 ToString trait 中的 to_string 方法。
+// 例如，我们可以像下面一样将整数转换为对应的String值，因为整数实现了 Display：
+// let s = 3.to_string();
+
 
 fn main() {
     let tweet = Tweet {

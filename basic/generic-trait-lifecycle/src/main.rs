@@ -38,4 +38,35 @@ fn main() {
     //     println!("r: {}", r);// -----------------+
     // }                        //  
 
+    // 我们将r的生命周期标注为了 'a，并将 x 的生命周期标注为了 'b
+    // 内部的'b代码块要小于外部的'a 生命周期代码块，就是说， r 的作用域显然大于 x 的作用域
+    // 在编译过程中，Rust 会比较两段生命周期的大小，并发现 r 拥有生命周期 'a，但却指向了拥有生命周期 'b 的内存
+    // 这段程序会由于 'b 比 'a 短而被拒绝通过编译：被引用对象的存在范围短于引用者
+
+    // {                        // 
+    //     let x = 5;           // -----------------+----'b
+    //                          //                  |
+    //     let r = &x;          // --+--'a          |
+    //                          //   |              |
+    //     println!("r: {}", r);// --+--            |
+    //                          //                  |
+    //                          // -----------------+
+    // }                        //  
+
+    // 将代码修正为上面的格式，显然是可以通过编译的，因为数据 x 的生命周期（作用域）显然大于引用的生命周期（作用域）
+    // x 拥有长于 'a 的生命周期 'b。这也意味着 r 可以引用 x 了，因为 Rust 知道 r 中的引用在 x 有效时会始终有效
+
+}
+
+
+// 比较两个字符串的长度，并返回最长的那个
+// 直接编译，会报错：
+// error[E0106]: missing lifetime specifier
+// help: this function's return type contains a borrowed value, but the signature does not say whether it is borrowed from `x` or `y`
+fn longest(x: &str, y: &str) -> &str {
+    if (x.len() > y.len()) {
+        x
+    } else {
+        y
+    }
 }

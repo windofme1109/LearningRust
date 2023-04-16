@@ -4,18 +4,20 @@
 
 // 生命周期可以避免悬垂引用
 
+use std::fmt::Display;
+
 fn main() {
     // 外部作用域声明一个未初始化的变量
-    let r;
-    {
-        // 内部作用域声明一个为 x 的变量
-        let x = 5;
-        // 将 r 的值设置为指向 x 的引用
-        // borrowed value does not live long enough
-        r = &x;
-    }
-    // 在外部作用域继续引用 r
-    println!("r: {}", r);
+    // let r;
+    // {
+    //     // 内部作用域声明一个为 x 的变量
+    //     let x = 5;
+    //     // 将 r 的值设置为指向 x 的引用
+    //     // borrowed value does not live long enough
+    //     r = &x;
+    // }
+    // // 在外部作用域继续引用 r
+    // println!("r: {}", r);
     // 上面的代码会编译不通过，编译器提示：error[E0597]: `x` does not live long enough
     // x 在内部作用域（10 - 16 行）生效，在外部作用域，就会失效
     // 而 r 在整个作用域生效
@@ -56,17 +58,233 @@ fn main() {
     // 将代码修正为上面的格式，显然是可以通过编译的，因为数据 x 的生命周期（作用域）显然大于引用的生命周期（作用域）
     // x 拥有长于 'a 的生命周期 'b。这也意味着 r 可以引用 x 了，因为 Rust 知道 r 中的引用在 x 有效时会始终有效
 
+
+    let str1 = String::from("long string is long");
+    {
+        let str2 = String::from("xyz");
+        let result = longest(str1.as_str(), str2.as_str());
+        // The longest string is long string is long
+        println!("The longest string is {}", result)
+    }
+
+    // str1 作用域一直到 main 函数的结尾，而 str2 的作用域范围是内部作用域，result 也是这个作用域
+    // 所以longest 函数指明的生命周期就是 str2 的生命周期，再这个生命周期内，str1、str2 和 result 都是有效的
+    // 所以编译可以通过，且可以正常执行
+
+    // let str3 = String::from("long string is long");
+    // let result;
+    // {
+    //     let str4 = String::from("xyz");
+    //     result = longest(str3.as_str(), str4.as_str());
+    //
+    // }
+    // error[E0597]: `str4` does not live long enough
+    // println!("The longest string is {}", result);
+
+    // 上面的代码无法通过编译，因为 result 的作用域和 str3 一样，都是到 main 函数的结尾，而 str4 的作用域只是内部作用域
+    // 在引用 result 的地方，str4 已经失效了，为了使 println! 语句中的result是有效的，str4 需要一直保持有效
+    // 直到外部作用域结束的地方。因为我们在函数参数与返回值中使用了同样的生命周期参数 'a，所以Rust才会指出这些问题
+
+    // 虽然从结果上看，result 应该指向 str3 的引用，引用 str3 比 str4 长
+    // 因为 result 的作用域和 str3 一样，在 println! 这块对 result 引用时，str3 还没有失效，这段代码应该编译通过才对
+    // 但是此时仅仅是编译，而不是执行，所以 Rust 无法从静态分析中得到引用一定有效的结论
+    // 我们曾经告诉过 Rust，longest 函数返回的引用的生命周期与传入的引用的生命周期中较短的那一个相同
+    // 仅在这一约束下，还是有可能出现非法引用的，因此借用检查器拒绝编编译上面的代码
+
+    // 使用一个标注了生命周期参数的泛型
+    let novel = String::from("Call me Ishmael. Some years ago...");
+    let first_sentence = novel.split('.')
+        .next()
+        .expect("Could not find a '.'");
+    // ImportantExcerpt实例创建之前，novel中的数据就已经生成了
+    // 而且 novel 会在 ImportantExcerpt 离开作用域后才离开作用域
+    // 所以 ImportantExcerpt 实例中的引用总是有效的
+    let i = ImportantExcerpt { part: first_sentence };
+
+
+
+    // 静态生命周期
+    // Rust中还存在一种特殊的生命周期 'static，它表示整个程序的执行期
+    // 所有的字符串字面量都拥有 'static 生命周期，我们可以像下面一样显式地把它们标注出来
+    let s: &'static str = "I have a static lifetime.";
+    // 字符串的文本被直接存储在二进制程序中，并总是可用的。因此，所有字符串字面量的生命周期都是 'static
+    // 'static 生命周期，就和程序的执行周期相同
+    // 因此，在程序的任意时刻对 'static 生命周期变量的引用都是有效的
+    //
+    // 注意，不要随便将一个变量的生命周期声明为 'static，我们应该关注的是我们的引用是否真的可以在整个程序的生命周期内都有效。即便
+    // 它可以，我们也需要考虑一下它是否真的需要存活那么长时间，毕竟，多数的错误都是试图创建一个悬垂引用，或者是引用的生命周期不匹配
+
 }
+
+// 声明一个带生命周期、泛型以及 trait 约束的函数
+fn longest_5<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a str where T: Display {
+
+    println!("Announcement! {}", ann);
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+
+}
+
+
+// 生命周期参数是泛型的一种，因此和泛型参数声明在一起，都在函数名后面的尖括号中
+// x 和 y 以及返回值都指明了生命周期，这杨可以保证返回值引用的生命周期不少于 x 和 y 生命周期 'a
+// ann 被约束为 T，而 T 实现了 Display 这个trait，因此可以使用 println! 打印
 
 
 // 比较两个字符串的长度，并返回最长的那个
 // 直接编译，会报错：
 // error[E0106]: missing lifetime specifier
 // help: this function's return type contains a borrowed value, but the signature does not say whether it is borrowed from `x` or `y`
-fn longest(x: &str, y: &str) -> &str {
-    if (x.len() > y.len()) {
+// 就是说，我们无法确定返回的是 x 还是 y，因此借用检查器无法通过分析 x 和 y 的作用域来确定返回值是否还有效
+// fn longest(x: &str, y: &str) -> &str {
+//     if (x.len() > y.len()) {
+//         x
+//     } else {
+//         y
+//     }
+// }
+
+// 解决longest 函数编译不通过的方法是：添加生命周期标注
+// 生命周期参数名称必须以单引号（'）开头，且通常使用全小写字符
+// 与泛型一样，它们的名称通常也会非常简短。'a 被大部分开发者选择作为默认使用的名称，生命周期写在泛型中，也可以用来标识变量
+// 我们也会将生命周期参数的标注填写在 & 引用运算符之后，并通过一个空格符来将标注与引用类型区分开来
+// 单个生命周期的标注本身并没有太多意义，标注之所以存在是为了向 Rust 描述多个泛型生命周期参数之间的关系
+
+// &i32
+// &'a i32   拥有显式生命周期的引用
+// &'a mut i32   拥有显式生命周期的可变引用
+
+// 我们给 longest 函数的 参数 x、y 和返回值都添加了生命周期标注
+// 这表明：这几个引用都必须拥有相同的生命周期
+fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
+    if x.len() > y.len() {
         x
     } else {
         y
     }
 }
+
+// longest 函数的函数定义表明：所获取的两个字符串切片参数的存活时间，必须不短于给定的生命周期'a
+// 这个函数签名同时也意味着，从这个函数返回的字符串切片也可以获得不短于'a 的生命周期
+// 而这些正是我们需要Rust所保障的约束。
+// 注意，当我们在函数签名中指定生命周期参数时，我们并没有改变任何传入值或返回值的生命周期
+// 我们只是向借用检查器指出了一些可以用于检查非法调用的约束
+//
+// 当我们在函数中标注生命周期时，这些标注会出现在函数签名而不是函数体中
+// Rust 可以独立地完成对函数内代码的分析
+// 但是，当函数开始引用或被函数外部的代码所引用时想要单靠 Rust 自身来确定参数或返回值的生命周期，就几乎是不可能的了
+// 函数所使用的生命周期可能在每次调用中都会发生变化，这也正是我们需要手动对生命周期进行标注的原因
+// 当我们将具体的引用传入 longest 函数时，被用于替代 'a 的具体生命周期就是作用域 x 与作用域 y 重叠的那一部分。
+// 换句话说，泛型生命周期 'a 会被具体化为 x 与 y 两者中生命周期较短的那一个，这样可以保证生命周期范围内，x 和 y 都是有效的
+// 因为我们将返回的引用也标记为了生命周期参数 'a，所以返回的引用在具化后的生命周期范围内都是有效的
+
+
+// 当函数返回一个引用时，返回类型的生命周期参数必须要与其中一个参数的生命周期参数相匹配。
+// 当返回的引用没有指向任何参数时，那么它只可能是指向了一个创建于函数内部的值
+// 由于这个值会因为函数的结束而离开作用域，所以返回的内容也就变成了悬垂引用
+// 如下面的例子所示：
+// fn longest_2<'a>(x: &str, y: &str) -> &'a str {
+//     let result = String::from("really long string");
+//     // error[E0515]: cannot return reference to local variable `result`
+//     result.as_str()
+// }
+
+// 上面的 longest_2 函数，虽然我们已经给返回值指定了生命周期 'a，但是依旧无法通过编译
+// 报错信息为： error[E0515]: cannot return reference to local variable `result`
+// 因为函数内部的返回值没有与任何参数的生命周期产生关联
+// result 作用域只限于 longest_2 内部，也就是说，函数执行完成以后，result 就已经离开其作用域，并且被清理
+// 而 result 的引用却被返回到了函数外部，这样就会产生悬垂引用，这个就和生命周期参数 'a 无关了
+// 解决方式是：返回一个持有自身所有权的数据类型而不是引用，这样就可以将清理值的责任转移给函数调用者了
+
+// 生命周期语法就是用来关联一个函数中不同参数及返回值的生命周期的。一旦它们形成了某种联系，Rust就获得了足够的信息来支持保障内存安全的操作
+
+// 在结构体中使用生命周期标注
+// 结构体中除了可以定义自持有类型的数据以外，也可以存储引用，不过需要为结构体定义的每个引用添加生命周期标注
+// 如同泛型数据类型一样，为了在结构体定义中使用生命周期参数，我们需要在结构体名称后的尖括号内声明泛型生命周期参数的名字
+// 这个标注意味着 ImportantExcerpt 实例的存活时间不能超过存储在 part 字段中的引用的存活时间
+// struct ImportantExcerpt<'a> {
+//     part: &'a str
+// }
+
+// 生命周期参数的省略
+// 在某些场景下，我们不需要显式声明引用的生命周期，但是也可以通过编译，这是为什么呢
+// 因为 Rust 会对我们函数或者方法的入参的生命周期进行推导，推导的规则如下：
+// 1. 每一个引用参数都会拥有自己的生命周期参数
+//     例如：单参数函数拥有一个生命周期参数：fn foo<'a>(x: &'ai32)；双参数函数拥有两个不同的生命周期参数：fn foo<'a, 'b>(x: &'a i32, y: &'b i32)；以此类推。
+// 2. 当只存在一个输入生命周期参数时，这个生命周期会被赋予给所有输出生命周期参数
+//     例如 fn foo<'a>(x: &'a i32) -> &'a i32
+// 3. 当拥有多个输入生命周期参数，而其中一个是 &self 或 &mut self 时，self 的生命周期会被赋予给所有的输出生命周期参数
+//    这条规则使方法更加易于阅读和编写，因为它省略了一些不必要的符号
+// 输入生命周期：函数参数或方法参数中的生命周期被称为输入生命周期（input lifetime）
+// 输出生命周期：函数参数或方法的返回值的生命周期则被称为输出生命周期（output lifetime）
+
+// 在没有显式标注的情况下，编译器目前使用了上面 3 种规则来计算引用的生命周期
+// 第一条规则作用于输入生命周期，第二条和第三条规则作用于输出生命周期。当编译器检查完这 3 条规则后仍有无法计算出生命周期的引用时
+// 编译器就会停止运行并抛出错误
+// 这些规则不但对 fn 定义生效，也对impl代码块（方法）生效
+
+// 下面的这段代码，没有显式标明生命周期，却可以通过编译
+// 这是因为编译器应用上面的三个规则，我们也尝试应用一下：
+// first_word(s: &str) -> &str {}
+// 应用第一条规则：first_word<'a>(s: &'a str) -> &str {}
+// 只有一个参数，那么可以用于第二条规则：first_word<'a>(s: &'a str) -> &'a str {}
+// 这样函数签名中的引用都拥有了生命周期，因此可以通过编译
+fn first_word(s: &str) -> &str {
+    let bytes = s.as_bytes();
+    for (i, &item) in bytes.iter().enumerate() {
+        if item == b' ' {
+            return &s[0..i];
+        }
+    } &
+        s[..]
+}
+
+// fn longest_3(x: &str, y: &str) -> &str {}
+
+// 如果我们不给 longest 函数添加生命周期，那么编译器是无法推断出来引用的生命周期的
+// 原因如下：
+// 应用第一条规则：fn longest_3<'a, 'b>(x: &'a str, y: &'b str) -> &str {}
+// longest_3 函数的签名有两个参数，而且没有 &self，因此不符合第二条规则和第三条规则
+// 函数签名中的引用无法拥有完整的生命周期标注，所以编译会失败
+
+// 结构体方法中的生命周期标注
+// 多数情况下，我们无需手动给方法标注生命周期参数
+// 我们也可以手动给方法添加生命周期标注
+// 添加方式与给方法添加泛型参数类型，声明和使用生命周期参数的位置取决于它们是与结构体字段相关，还是与方法参数、返回值相关
+
+// 结构体字段中的生命周期名字总是需要被声明在 impl 关键字之后
+// 并被用于结构体名称之后，因为这些生命周期是结构体类型的一部分
+// 在impl代码块的方法签名中，引用可能是独立的，也可能会与结构体字段中的引用的生命周期相关联
+// 另外，生命周期省略规则在大部分情况下都可以帮我们免去方法签名中的生命周期标注
+
+struct ImportantExcerpt<'a> {
+    part: &'a str
+}
+
+// 生命周期参数要在 impl 关键字后面声明，类似于定义方法中申明泛型参数
+// 我的理解：impl 关键字 'a，实际上是给 ImportantExcerpt 结构体的定义的生命周期标注使用的
+impl<'a> ImportantExcerpt<'a> {
+    fn level(&self) -> i32 {
+        3
+    }
+}
+
+// level 方法无需手动标注生命周期，因为 Rust 可以根据第一条条规则推断出来：fn<'a> level(&'a self) -> i32 {}
+// level 方法的返回值不是引用，所以无需给返回值添加生命周期
+
+// 一个多参数的方法的例子
+impl<'a> ImportantExcerpt<'a> {
+    fn announce_and_return_part(&self, announcement: &str) -> &str {
+        println!("Attention please: {}", announcement);
+        self.part
+    }
+}
+
+// 上面这个例子也无需手动标注生命周期，Rust 同样可以推断出来：
+// 应用第一条规则：fn announce_and_return_part<'a, 'b>(&'a self, announcement: &'b str) -> &str {}
+// 入参中有 self，那么应用第三条规则：输出参数生命周期标注为 self 的生命周期：fn announce_and_return_part<'a, 'b>(&'a self, announcement: &'b str) -> &'a str {}
+// 这样函数签名中的引用的生命周期都被计算出来了，就可以通过编译
+

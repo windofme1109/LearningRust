@@ -80,10 +80,54 @@ fn prints_and_returns_10(a: i32) -> i32 {
     10
 }
 
+// Rust 中涉及到的测试组织架构主要是单元测试（unit test）和集成测试（integration test）
+// 单元测试小而专注，每次只单独测试一个模块或私有接口
+// 而集成测试完全位于代码库之外，和正常从外部调用代码库一样使用外部代码， 只能访问公共接口，并且在一次测试中可能会联用多个模块
+
+// 单元测试
+// 单元测试的目的在于将一小段代码单独隔离出来，从而迅速地确定这段代码的功能是否符合预期
+// 我们一般将单元测试与需要测试的代码存放在src 目录下的同一文件中
+// 同时也约定俗成地在每个源代码文件中都新建一个 tests 模块来存放测试函数
+// 并使用cfg(test)对该模块进行标注：
+// #[cfg(test)]
+// 模块名
+
+// 在 tests 模块上标注 #[cfg(test)]可以让Rust只在执行cargo test 命令时编译和运行该部分测试代码
+// 而在执行cargo build时剔除它们。这样就可以在正常编译时不包含测试代码，从而节省编译时间和产出物所占用的空间
+
+// 我们不需要对集成测试标注#[cfg(test)]，因为集成测试本身就放置在独立的目录中
+// 但是，由于单元测试是和业务代码并列放置在同一文件中的，所以我们必须使用 #[cfg(test)] 进行标注才能将单元测试的代码排除在编译产出物之外
+
+// cfg 属性是配置（configuration）一词的英文缩写，它告知Rust接下来的条目只有在处于特定配置时才需要被包含进来。
+// 下面的指定的 test 就是Rust中用来编译、运行测试的配置选项
+// 通过使用cfg属性，Cargo 只在运行 cargo test 时才会将测试代码纳入编译范围
+// 这一约定不止针对那些标注了 #[test] 属性的测试函数，还针对该模块内的其余辅助函数 
+
+
+
+fn internal_adder(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+pub fn add_two_2(a: i32) -> i32 {
+    internal_adder(a, 2)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // 测试私有函数
+    #[test]
+    fn internal() {
+        assert_eq!(4, internal_adder(2, 2))
+    }
+
+    // 注意：上面代码中的internal_adder函数没有被标注为pub，
+    // 因为测试本身就是 Rust 代码，并且 tests 模块就是 Rust 模块
+    // 所以你可以正常地将 internal_adder 导入测试作用域并调用它
+    // 也就是说，在同一个父模块下，我们可以测试私有函数
 
 
     // 控制测试的运行方式
@@ -119,18 +163,18 @@ mod tests {
     // 默认情况下，Rust 不会输出出通过测试的打印到标准输出的信息
 
 
-    #[test]
-    fn this_test_will_pass() {
-        let result = prints_and_returns_10(4);
-        assert_eq!(10, result);
-    }
+    // #[test]
+    // fn this_test_will_pass() {
+    //     let result = prints_and_returns_10(4);
+    //     assert_eq!(10, result);
+    // }
 
 
-    #[test]
-    fn this_test_will_fail() {
-        let result = prints_and_returns_10(8);
-        assert_eq!(5, result);
-    }
+    // #[test]
+    // fn this_test_will_fail() {
+    //     let result = prints_and_returns_10(8);
+    //     assert_eq!(5, result);
+    // }
 
     // 上面的两个测试用例，this_test_will_pass 测试会通过，而 this_test_will_fail 测试会失败
     // 失败信息如下：
@@ -203,19 +247,19 @@ mod tests {
     // 只运行部分特定名称的测试
     // 执行全部的测试用例有时会花费很长时间。而在编写某个特定部分的代码时
     // 你也许只需要运行和代码相对应的那部分测试。我们可以通过向 cargo test 中传递测试名称来指定需要运行的测试
-    #[test]
-    fn add_two_and_two() {
-        assert_eq!(4, add_two(2));
-    }
-    #[test]
-    fn add_three_and_two() {
-        assert_eq!(5, add_two(3));
-    }
+    // #[test]
+    // fn add_two_and_two() {
+    //     assert_eq!(4, add_two(2));
+    // }
+    // #[test]
+    // fn add_three_and_two() {
+    //     assert_eq!(5, add_two(3));
+    // }
 
-    #[test]
-    fn one_hundred() {
-        assert_eq!(102, add_two(100));
-    }
+    // #[test]
+    // fn one_hundred() {
+    //     assert_eq!(102, add_two(100));
+    // }
 
     // 上面定义了三个测试用例
     // 执行 cargo test，会执行三个用例
@@ -235,12 +279,72 @@ mod tests {
     // 我们可以通过过滤名称来运行多个测试
     // 实际上，我们可以指定测试名称的一部分来作为参数，任何匹配这一名称的测试都会得到执行
     // 例如，因为如果测试用例中都包含 add 这个字段，所以我们可以通过命令 cargo test add 来运行它们
+    // 命令：cargo test add
+    // 输出结果如下：
+    // running 2 tests
+    // test tests::add_three_and_two ... ok
+    // test tests::add_two_and_two ... ok
+
+    // test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+    // 如果想执行多个测试用例，但不是全部的测试用例，可以在测试用例的名称中添加共同的关键词
+    // 这样就可以通过 执行 cargo test 指定关键词来执行多个测试用例
+    // 注意，测试所在的模块的名称也是测试名称的一部分，所以我们可以通过模块名来运行特定模块内的所有测试
 
 
+    // 通过显式指定来忽略某些测试
+    // 有些测试执行起来比较耗时，所以想要在大部分的cargo test命令中忽略它们
+    // 除了手动将想要运行的测试列举出来，你也可以使用 ignore 属性来标记这些耗时的测试
+    // 将这些测试排除在正常的测试运行之外
+    // 测试时，会忽略这些标记为 ignore 属性的测试用例
 
 
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, add_two(2));
+    }
 
+    // 在我们想要忽略的测试，在 #[test] 标记的下方添加 #[ignore] 属性
+    // 当我们运行测试时，就会忽略 expensive_test 这个测试用例
+    #[test]
+    #[ignore]
+    fn expensive_test() {
+        // 耗时很长
+    }
 
+    //     running 2 tests
+    // test tests::expensive_test ... ignored
+    // test tests::it_works ... ok
+
+    // test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    //    Doc-tests adder
+
+    // running 0 tests
+
+    // test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    // 执行 cargo test，只执行了一个测试用例： it_works
+    // expensive_test 这个用例被忽略了
+    // 在测试结果汇总中，1 ignored 表示有一个测试用例被忽略
+
+    // 如果想要执行标记为 ignore 的测试用例，可以使用下面这个命令：
+
+    //  cargo test -- --ignored
+    // 
+    // 输出如下：running 1 test
+
+    // test tests::expensive_test ... ok
+
+    // test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+    //    Doc-tests adder
+
+    // running 0 tests
+
+    // test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    // 只执行了 expensive_test 这个标记为 ignore 的测试用例
 
 
 

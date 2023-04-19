@@ -97,8 +97,15 @@ pub fn search<'a>(query: &'a str, content: &'a str) -> Vec<&'a str> {
     // 4. 如果不包含，则忽略
     // 5. 返回匹配到的结果列表
 
+
+    //可以用字符串的 lines 方法逐行遍历字符
+    // lines方法会返回一个迭代器。结合 for 循环，就可以获得字符串中每一行的值
+    // 另外一种的做法是自己处理，以换行符为分隔符，对字符串进行切分
     for line in content.lines() {
+        // 使用字符串的 contains 方法可实现搜索
+        // contains 方法用来再字符串中查找是否包含指定的子字符串，包含的话，返回 true，否则返回 false
         if line.contains(query) {
+            // 将找到的结果放入动态数组中
             result.push(line);
         }
     }
@@ -108,21 +115,91 @@ pub fn search<'a>(query: &'a str, content: &'a str) -> Vec<&'a str> {
     result
 }
 
+pub fn search_case_insensitive<'a>(query: &'a str, content: &'a str) -> Vec<&'a str> {
+    // 调用 to_lowercase 将字符串转换为小写
+    // 注意：query 是一个拥有数据所有权的 String，而不再是一个字符串切片
+    // 因为调用 to_lowercase 函数必定会创建新的字符串
+    let query = query.to_lowercase();
+    let mut result = vec![];
+
+    for line in content.lines() {
+        // query 现在是一个字符串，而 contains 方法接收一个字符串切片，所在这需要使用 query 的引用
+        // 将 line 转换为小写的字符，然后调用 contains 方法进行判断
+        if line.to_lowercase().contains(&query) {
+            result.push(line);
+        }
+    }
+
+    result
+
+}
+
+
+// 测试驱动开发 （ test-driven development，TDD）的流程如下：
+// 1. 编写一个会失败的测试，运行该测试，确保它会如期运行失败
+// 2. 编写或修改刚好足够多的代码来让新测试通过
+// 3. 在保证测试始终通过的前提下重构刚刚编写的代码
+// 4. 返回步骤 1，进行下一轮开发
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+
+    // one_result 测试函数一开始会运行失败，因为 search 函数不能如期的返回搜索结果的数组
+    // 随着我们修改 search 函数，完善它的功能，one_result 就可以通过测试
+//     #[test]
+//     fn one_result() {
+//         let query = "duct";
+//         let content = "\
+// Rust:
+// safe, fast, productive.
+// Pick three.";
+//
+//         assert_eq!(
+//             vec!["safe, fast, productive."],
+//             search(query, content)
+//         )
+//     }
+
+
+    // 使用环境变量
+    // 用户可以设置一个环境变量，设置以后就可进行不区分大小写的搜索
+    // 配置的变量在整个终端会话中一直有效
+
+
+    // 将 one_result 改为 case_sensitive
+    // 目的是和另外一个测试用例 case_insensitive 进行对比
+    // case_sensitive 测试用例表示这是一个区分大小写搜索的测试用例
     #[test]
-    fn one_result() {
+    fn case_sensitive() {
         let query = "duct";
         let content = "\
 Rust:
 safe, fast, productive.
-Pick three.";
+Pick three.
+Duct Tape.";
 
         assert_eq!(
             vec!["safe, fast, productive."],
             search(query, content)
         )
     }
+
+    #[test]
+    fn case_insensitive() {
+        let query = "rUsT";
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick three.
+Trust me.";
+
+        assert_eq!(
+            vec!["Rust:", "Trust me."],
+            search_case_insensitive(query, contents)
+        );
+    }
+
+
 }

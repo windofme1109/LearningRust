@@ -6,6 +6,12 @@ use std::{env, process};
 use std::fs;
 
 
+// todo - 环境变量和命令行参数的优先级
+// 某些程序允许用户同时使用命令行参数和环境变量来设置同一个选项
+// 在这种情况下，程序需要确定不同配置方式的启用优先级
+// 作为练习，你可以同时使用命令行参数和环境变量来配置不区分大小写
+// 的选项，并在两种配置方式不一致时决定命令行参数和环境变量的优先级
+
 // 启动函数，包含了程序运行的主要逻辑
 // main 函数的返回值是 Rsult 枚举，当出现错误时，返回的是 Err 变体，其包裹的类型使用了 trait 对象（trait object）Box<dyn Error>（
 // Box<dyn Error> 意味着函数会返回一个实现了 Error trait 的类型，但我们并不需要指定具体的类型是什么
@@ -17,19 +23,26 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     // 这里使用了 ? 运算符替代 expect，当 read_to_string 返回的是 Err 变体，? 运算符直接将错误返回值返回给函数的调用者
     let content = fs::read_to_string(config.filename)?;
     // println!("With text : \n{}", content);
-    // 成功时返回的是 ()，因此这里需要使用 Ok 变体包裹空元祖
+    
+    let result = if config.case_sensitive {
+        search(&config.query, &content)
+    } else {
+        search_case_insensitive(&config.query, &content)
+    };
 
-    for line in search(&config.query, &content) {
+    for line in result {
         println!("{}", line);
     }
-
+// 成功时返回的是 ()，因此这里需要使用 Ok 变体包裹空元祖
     Ok(())
 }
 
 // 使用结构体来存储关联性很强的两个字段：query 和 filename
 pub struct Config {
     query: String,
-    filename: String
+    filename: String,
+    // 搜索时是否忽略大小写，为 true，表示忽略大小写，为 false，表示识别大小写
+    case_sensitive: bool,
 }
 // 包 含 query 和 filename 字 段 的 结 构 体 Config
 impl Config {
@@ -73,9 +86,17 @@ impl Config {
         // 在我们实现命令行这个应用场景中，用少许的性能交换更多的简捷性是非常值得的取舍
         let query = args[1].clone();
         let filename = args[2].clone();
+
+
+        // 处理环境变量的相关函数被放置在标准库的env模块中，需要引入 env 模块
+        // 然后使用 env 模块中的 var 函数来检查名为 CASE_INSENSITIVE 的环境变量是否存在，其返回值是一个 Result 枚举
+        // 没有设置以 key 为名的环境变量，var 函数返回一个 Err 变体，调用 is_err 函数判断是不是 Err 变体，如果是，则返回 true，否则返回 false
+        // 因为我们不关心环境变量的具体值，只关心其存在与否，所以我们直接使用了is_err而不是unwrap、expect或其他曾经接触过的Result的方法
+        let case_sensitive = env::var("CASE_INSENSITIVE").is_err();
         Ok(Config {
             query,
-            filename
+            filename,
+            case_sensitive
         })
     }
 }

@@ -57,6 +57,15 @@ fn main() {
     // 但是，当值为 Err 时，这个方法则会调用闭包 （closure）中编写的代码，也就是我们定义出来并通过参数传入 unwrap_or_else 的这个匿名函数
     let config = Config::new(&args).unwrap_or_else(|err| {
         // println!("Problem parsing arguments: {}", err);
+
+        // 区分标准错误（stderr）和标准输出（stdout）
+        // println! 是用来打印标准输出的，也就是说，正常程序运行的结果，应该使用标准输出打印到屏幕上
+        // 而且，标准输出的内容还可以写到文件中
+        // 而标准错误将信息打印到屏幕上，所以，对于错误信息，我们应该使用标准错误进行打印
+        // 正常的结果使用 标准输出打印或者写入到文件中，这样可以保证文件中都是正常的结果，不会出现错误信息
+        // 错误只会经由标准错误打印到屏幕上
+        // 可以类比于 javascript 中的 console.log 和 console.error
+        eprintln!("Problem parsing arguments: {}", err);
         // process::exit函数会立刻中止程序运行，并将我们指定的错误码返回给调用者
         process::exit(1);
     });
@@ -67,7 +76,9 @@ fn main() {
     // 因为run函数在运行成功时返回的是()，而我们只关注产生错误时的情形，所以没有必要调用 unwrap_or_else 把这个必定是()的值取出来
     // 对于错误的处理，if let 和 unwrap_or_else 是一样的
     if let Err(e) = minigrep::run(config) {
+        
         // println!("Application error: {}", e);
+        eprintln!("Application error: {}", e);
         process::exit(1)    
     };
 

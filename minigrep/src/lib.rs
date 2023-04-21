@@ -9,7 +9,13 @@ use std::fs;
 // todo - 环境变量和命令行参数的优先级
 
 // todo - powershell 和 shell 设置环境变量的方法
+// powershell 
+// $env:CASE_INSENSITIVE=1
 
+// shell 
+// export CASE_INSENSITIVE=1
+// 打印环境变量：echo $CASE_INSENSITIVE
+// 撤销环境变量：uset CASE_INSENSITIVE
 
 // 某些程序允许用户同时使用命令行参数和环境变量来设置同一个选项
 // 在这种情况下，程序需要确定不同配置方式的启用优先级

@@ -43,10 +43,25 @@ use minigrep::{self, Config};
 
 // 也就是说，maim 只负责启动程序，而真正的业务逻辑放在 lib 中
 fn main() {
+
+    let args = env::args();
+
+    // Config 的关联函数 new 现在接收的是迭代器，因此，这里直接将 args 参数传进去，而无需将其转换为 字符串数组
+    let config = Config::new(args).unwrap_or_else(|err| {
+
+        eprintln!("Problem parsing arguments: {}", err);
+        process::exit(1);
+    });
+
+
+
     // 使用 env 下的方式收集命令行参数收集到一个动态数组中
     // 因为 collect 函数可以返回多种不同的集合，所以我们显式地标注了 args 的类型来获得一个包含字符串的动态数组
     // Rust 无法推断出我们具体的集合类型，所以需要我们手动标注
-    let args: Vec<String> = env::args().collect();
+    // let args: Vec<String> = env::args().collect();
+
+
+
 
 
     // 关联函数 new 成功的时候返回 Ok 变体，Ok 中的值是 Config 实例
@@ -55,39 +70,39 @@ fn main() {
     // 使用 unwrap_or_else 可以让我们执行一些自定义的且不会产生 panic! 的错误处理策略
     // 当 Result 的值是 Ok 时，这个方法的行为与 unwrap 相同：它会返回 Ok 中的值
     // 但是，当值为 Err 时，这个方法则会调用闭包 （closure）中编写的代码，也就是我们定义出来并通过参数传入 unwrap_or_else 的这个匿名函数
-    let config = Config::new(&args).unwrap_or_else(|err| {
-        // println!("Problem parsing arguments: {}", err);
-
-        // 区分标准错误（stderr）和标准输出（stdout）
-
-        // 参考资料：https://blog.51cto.com/u_15127685/4395796
-        // println! 是用来打印标准输出的，也就是说，正常程序运行的结果，应该使用标准输出打印到屏幕上
-        // 而且，标准输出的内容还可以写到文件中
-        // 我们使用标准输出 println! 打印错误信息，可能会出现一个问题，就是有时候会将标准输出的内容写入文件
-        // 那么此时如果输出的是错误信息，也会写入文件中，这样就会掺杂正确的内容和错误信息
-
-        // 例如，我们可以我们可以在运行程序时使用 > 运算符与文件名 output.txt，这个文件名指定了标准输出重定向的目标
-        // 命令：cargo run > output.txt
-        // 由于我们没有传入任何参数，所以程序应该会在执行时引发一个错误：
-        // Problem parsing arguments: not enough arguments
-
-        // 这里的 > 语法会告知终端将标准输出中的内容写入 output.txt 文件而不是打印到屏幕上
-        // 运行程序后屏幕上没有出现我们期待的错误提示信息，这意味着错误提示信息可能被写入了文件中
-        // 现在 output.txt 文件中应该会包含以下内容：
-        // Problem parsing arguments: not enough arguments
-
-        // 错误提示信息被打印到了标准输出中，将类似的错误提示信息打印到标准错误可能会更加实用，这样可以让文件内容保持整洁，只包含正常的运行结果数据
-
-        // 标准错误将信息打印到屏幕上，所以，对于错误信息，我们应该使用标准错误进行打印
-        // 正常的结果使用标准输出打印或者写入到文件中，这样可以保证文件中都是正常的结果，不会出现错误信息
-        // 错误只会经由标准错误打印到屏幕上
-        // 可以类比于 javascript 中的 console.log 和 console.error
-        eprintln!("Problem parsing arguments: {}", err);
-
-
-        // process::exit函数会立刻中止程序运行，并将我们指定的错误码返回给调用者
-        process::exit(1);
-    });
+    // let config = Config::new(&args).unwrap_or_else(|err| {
+    //     // println!("Problem parsing arguments: {}", err);
+    //
+    //     // 区分标准错误（stderr）和标准输出（stdout）
+    //
+    //     // 参考资料：https://blog.51cto.com/u_15127685/4395796
+    //     // println! 是用来打印标准输出的，也就是说，正常程序运行的结果，应该使用标准输出打印到屏幕上
+    //     // 而且，标准输出的内容还可以写到文件中
+    //     // 我们使用标准输出 println! 打印错误信息，可能会出现一个问题，就是有时候会将标准输出的内容写入文件
+    //     // 那么此时如果输出的是错误信息，也会写入文件中，这样就会掺杂正确的内容和错误信息
+    //
+    //     // 例如，我们可以我们可以在运行程序时使用 > 运算符与文件名 output.txt，这个文件名指定了标准输出重定向的目标
+    //     // 命令：cargo run > output.txt
+    //     // 由于我们没有传入任何参数，所以程序应该会在执行时引发一个错误：
+    //     // Problem parsing arguments: not enough arguments
+    //
+    //     // 这里的 > 语法会告知终端将标准输出中的内容写入 output.txt 文件而不是打印到屏幕上
+    //     // 运行程序后屏幕上没有出现我们期待的错误提示信息，这意味着错误提示信息可能被写入了文件中
+    //     // 现在 output.txt 文件中应该会包含以下内容：
+    //     // Problem parsing arguments: not enough arguments
+    //
+    //     // 错误提示信息被打印到了标准输出中，将类似的错误提示信息打印到标准错误可能会更加实用，这样可以让文件内容保持整洁，只包含正常的运行结果数据
+    //
+    //     // 标准错误将信息打印到屏幕上，所以，对于错误信息，我们应该使用标准错误进行打印
+    //     // 正常的结果使用标准输出打印或者写入到文件中，这样可以保证文件中都是正常的结果，不会出现错误信息
+    //     // 错误只会经由标准错误打印到屏幕上
+    //     // 可以类比于 javascript 中的 console.log 和 console.error
+    //     eprintln!("Problem parsing arguments: {}", err);
+    //
+    //
+    //     // process::exit函数会立刻中止程序运行，并将我们指定的错误码返回给调用者
+    //     process::exit(1);
+    // });
     
     // 将主要的运行逻辑放到 run 函数中
     // run 函数返回的是 Result，所以我们必须对 Err 变体进行处理，否则编译器会警告我们：this `Result` may be an `Err` variant, which should be handled

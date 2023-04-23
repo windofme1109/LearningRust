@@ -1,0 +1,28 @@
+[package]
+name = "my_crate"
+version = "0.1.0"
+edition = "2021"
+
+# Rust中的发布配置 （release profile）是一系列预定义好的配置方案，它们的配置选项各有不同，但都允许程序员对细节进行定制修改
+# 这些配置方案使得程序员可以更好地来控制各种编译参数。另外，每一套配置都是相互独立的
+# Cargo最常用的配置有两种
+# 1. 执行 cargo build 时使用的dev配置
+# 2. 执行 cargo build --release 时使用的 release 配置
+# dev 配置中的默认选项适合在开发过程中使用，而 release 配置中的默认选项则适合在正式发布时使用
+[profile.dev]
+opt-level = 1
+
+# 选项 opt-level 决定了 Rust 在编译时会对代码执行何种程度的优化
+# 从 0 到 3 都是合法的配置值。越高级的优化需要消耗越多的编译时间
+# 当我们处于处于开发阶段并常常需要编译代码时，我们需要可能地缩短编译时，因为此时还不需要编译产物
+# 这就是dev配置下的默认 opt-level 值为 0 的原因
+# 而当我们准备好最终发布产品时，则最好花费更多的时间来编译程序
+# 因为我们只需要在发布时编译一次，但却会多次运行编译后的程序
+# 所以发布模式会使用更长的编译时间来交换更佳的运行时性能。这就是 release 配置下的默认 opt-level 值为3的原因
+# 通过查看官方文档获取更多的关于配置的信息：https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.release]
+opt-level = 3
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]

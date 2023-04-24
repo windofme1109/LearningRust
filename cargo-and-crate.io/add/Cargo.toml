@@ -1,5 +1,7 @@
 [workspace]
 members = [
     'adder',
-    'add-one'
+    'add_one',
+    'add_two',
+    'add_three',
 ]

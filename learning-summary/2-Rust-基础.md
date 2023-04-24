@@ -45,3 +45,7 @@
 2. [Rust 参考手册 - 语句](https://minstrel1977.gitee.io/rust-reference/statements.html)
 
 3. [Rust 参考手册 - 表达式](https://minstrel1977.gitee.io/rust-reference/expressions.html)
+
+4. [Rust 专题](https://www.xiexianbin.cn/rust/index.html)
+
+5. [Naming convention for crates](https://github.com/rust-lang/api-guidelines/discussions/29)

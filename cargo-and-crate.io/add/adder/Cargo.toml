@@ -7,5 +7,7 @@ edition = "2021"
 
 [dependencies]
 # 由于 Cargo 不会主动去假设工作空间中的包会彼此依赖，所以我们必须要显式地指明包与包之间的依赖关系
-add-one = { path = '../add-one' }
+add_one = { path = '../add_one' }
+add_two = { path = '../add_two' }
+add_three = { path = '../add_three' }
 rand='0.3.14'

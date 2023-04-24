@@ -3,17 +3,27 @@
 version = 3
 
 [[package]]
-name = "add-one"
+name = "add_one"
 version = "0.1.0"
 dependencies = [
  "rand 0.3.23",
 ]
 
 [[package]]
+name = "add_three"
+version = "0.1.0"
+
+[[package]]
+name = "add_two"
+version = "0.1.0"
+
+[[package]]
 name = "adder"
 version = "0.1.0"
 dependencies = [
- "add-one",
+ "add_one",
+ "add_three",
+ "add_two",
  "rand 0.3.23",
 ]
 

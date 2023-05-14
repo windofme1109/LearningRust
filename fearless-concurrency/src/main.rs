@@ -1,149 +1,258 @@
+// 互斥体一次只允许一个线程访问数据
 
+// 互斥体（mutex）是英文 mutual exclusion 的缩写
+// 也就是说，一个互斥体在任意时刻只允许一个线程访问数据
+// 为了访问互斥体中的数据，线程必须首先发出信号来获取互斥体的锁（lock）
+// 锁是互斥体的一部分，这种数据结构被用来记录当前谁拥有数据的唯一访问权
+// 通过锁机制，互斥体守护（guarding）了它所持有的数据。
+//
+// 互斥体是出了名的难用，因为你必须牢记下面两条规则：
+// 1. 必须在使用数据前尝试获取锁
+// 2. 必须在使用完互斥体守护的数据后释放锁，这样其他线程才能继续完成获取锁的操作
+
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+
 fn main() {
+    //  使用关联函数 new 来创建 Mutex<T> 实例
+    let m = Mutex::new(5);
+    {
+        // 为了访问 Mutex<T> 实例中的数据，我们首先需要调用它的 lock 方法来获取锁
+        // 这个调用会阻塞当前线程直到我们取得锁
+        let mut num = m.lock().unwrap();
 
-    // 调用thread::spawn函数来创建线程，它接收一个闭包作为参数
-    // 该闭包会包含我们想要在新线程（生成线程）中运行的代码
+        // 当前线程对于 lock 函数的调用会在其他某个持有锁的线程发生 panic 时失败
+        // 实际上，任何获取锁的请求都会在这种场景里以失败告终，所以示例中的代码选择使用 unwrap 在意外发生时触发当前线程的panic
 
-    // handler 接收 thread::spawn 返回的结果，thread::spawn 返回的是 JoinHandle
-    // join 句柄提供了一个 [join] 方法，可用于连接生成的线程
-    // let handler = thread::spawn(|| {
-    //     for i in 1..10 {
-    //         // 在新线程（非主线程）中执行
-    //         println!("hi number {} from the spawned thread!", i);
-    //         thread::sleep(Duration::from_millis(1));
-    //     }
+        // 一旦获取了锁，我们便可以将它的返回值 num 视作一个指向内部数据的可变引用
+        // Rust 的类型系统会确保我们在使用 m 的值之前执行加锁操作：因为Mutex<i32>并不是i32的类型，所以我们必须获取锁才能使用i32值
+        // 我们无法忘记或忽略这一步骤，因为类型系统并不允许我们以其他方式访问内部的i32值
+
+        // Mutex<T>是一种智能指针。更准确地说，对 lock 的调用会返回一个名为 MutexGuard 的智能指针
+        // 这个智能指针通过实现 Deref 来指向存储在内部的数据
+        // 它还会通过实现 Drop 来完成自己离开作用域时的自动解锁操作
+        // 这种释放过程会发生在内部作用域的结尾处，
+        // 因此，我们不会因为忘记释放锁而导致其他线程无法继续使用该互斥体。锁的释放过程是自动发生的
+        *num = 6;
+    }
+
+    // 输出的数据确实被修改了
+    // m = Mutex { data: 6, poisoned: false, .. }
+    println!("m = {:?}", m);
+
+
+    // 首先创建了一个名为 counter 的变量来存储持有i32值的Mutex<T>
+
+    // let counter = Mutex::new(0);
+    // let mut handles = vec![];
+
+
+    // for _ in 1..10 {
+    //     // 我们通过迭代数字范围创建出了10个线程
+    //     // 在调用 thread::spawn 创建线程的过程中，我们给所有创建的线程传入了同样的闭包
+    //     // 这个闭包会把计数器移动至线程中，它还会调用 Mutex<T> 的 lock 方法来进行加锁
+    //     // 并为互斥体中的值加 1
+    //     // 而当线程执行完毕后，num 会在离开作用域时释放锁，从而让其他线程得到获取锁的机会
+    //     let handle = thread::spawn(move || {
+    //         let mut num = counter.lock().unwrap();
+    //         *num += 1;
+    //     });
+    //
+    //     handles.push(handle);
+    // }
+    // // 在主线程中收集了所有的线程句柄，并通过逐一调用句柄的 join 方法来确保所有生成的线程执行完毕
+    // for handle in handles {
+    //     handle.join().unwrap();
+    // }
+    // // 最后，主线程会获取锁并打印出程序的结果
+    // println!("Result: {}", *counter.lock().unwrap());
+
+    // 想法虽然美好，但是上面的代码无法通过编译，编译器输出如下：
+    // error[E0382]: use of moved value: `counter`
+    //   --> src\main.rs:47:36
+    //    |
+    // 43 |     let counter = Mutex::new(0);
+    //    |         ------- move occurs because `counter` has type `Mutex<i32>`, which does not implement the `Copy` trait
+    // ...
+    // 47 |         let handle = thread::spawn(move || {
+    //    |                                    ^^^^^^^ value moved into closure here, in previous iteration of loop
+    // 48 |             let mut num = counter.lock().unwrap();
+    //    |                           ------- use occurs due to use in closure
+
+    // 使用了移动的值 counter
+    // 报错信息不是很明显
+    // 不使用 for 循环创建线程，我们手动创建两个线程，然后依旧将 counter 传入闭包中
+
+    // let handle = thread::spawn(move || {
+    //     let mut num = counter.lock().unwrap();
+    //     *num += 1;
     // });
-
-    // 在主线程打印信息之前调用 join 方法 
-    // handler.join().unwrap();
-
-    // 输出如下：
-    // hi number 1 from the spawned thread!
-    // hi number 2 from the spawned thread!
-    // hi number 3 from the spawned thread!
-    // hi number 4 from the spawned thread!
-    // hi number 5 from the spawned thread!
-    // hi number 6 from the spawned thread!
-    // hi number 7 from the spawned thread!
-    // hi number 8 from the spawned thread!
-    // hi number 9 from the spawned thread!
-    // hi number 1 from the main thread!
-    // hi number 2 from the main thread!
-    // hi number 3 from the main thread!
-    // hi number 4 from the main thread!
-
-    // 主线程会等待新线程执行完毕后才开始执行自己的 for 循环，所以它的输出将不再出现交替的情形
-
-    // 调用了 join 方法，那么主线程一定会等到新线程执行完毕再结束，而二者的执行顺序取决于 jion 的调用位置
-
-    // main 运行在主线程中
-    // for i in 1..5 {
-    //     println!("hi number {} from the main thread!", i);
-    //     thread::sleep(Duration::from_millis(1));
+    //
+    // handles.push(handle);
+    //
+    // let handle2 = thread::spawn(move || {
+    //     let mut num2 = counter.lock().unwrap();
+    //     *num2 += 1;
+    // });
+    // handles.push(handle2);
+    //
+    // for handle in handles {
+    //     handle.join().unwrap();
     // }
 
-    // 需要注意的是，只要这段程序中的主线程运行结束，创建出的新线程就会相应停止
-    // 而不管它的打印任务是否完成。每次运行这段程序都有可能产生不同的输出
-
-    // 调用 thread::sleep 会强制当前的线程停止执行一小段时间，并允许一个不同的线程继续运行
-    // 这些线程可能会交替执行，但我们无法对它们的执行顺序做出任何保证
-    // 执行顺序由操作系统的线程调度策略决定在上面这次运行中
-    
-    // 使用 join 句柄等待所有线程结束
-
-    // 由于主线程的停止，上面的代码会在大部分情形下提前终止新线程，它甚至不能保证新线程一定会得到执行
-    // 这同样是因为我们无法对线程的执行顺序做出任何保证而导致的！
-    
-    // 我们可以通过将 thread::spawn 返回的结果保存在一个变量中，来避免新线程出现不执行或不能完整执行的情形
-    // thread::spawn 的返回值类型是一个自持有所有权的 JoinHandle，调用它的 join 方法可以阻塞当前线程直到对应的新线程运行结束
-   
-    // 线程句柄上调用 join 函数会阻塞当前线程，直到句柄代表的线程结束
-    // 阻塞线程意味着阻止一个线程继续运行或使其退
-    // handler.join().unwrap();
-
-    // 使用了 join 方法后，打印的信息如下：
-    // hi number 1 from the main thread!
-    // hi number 1 from the spawned thread!
-    // hi number 2 from the main thread!
-    // hi number 2 from the spawned thread!
-    // hi number 3 from the main thread!
-    // hi number 3 from the spawned thread!
-    // hi number 4 from the main thread!
-    // hi number 4 from the spawned thread!
-    // hi number 5 from the spawned thread!
-    // hi number 6 from the spawned thread!
-    // hi number 7 from the spawned thread!
-    // hi number 8 from the spawned thread!
-    // hi number 9 from the spawned thread!
-
-    // 由于我们将 join 函数放置到了主线程的 for 循环之后
-    // 所以主线程的 for 循环的代码正常执行
-    // 交替打印主线程和新线程的东西
-    // 等到主线程打印完成，就专注打印新线程的东西
-    // 主线程只会在新线程运行结束后退出
-
-
-    // 在线程中使用move闭包
-    // move 闭包常常被用来与 thread::spawn 函数配合使用，它允许你在某个线程中使用来自另一个线程的数据
-    // 你可以在闭包的参数列表前使用 move 关键字来强制闭包从外部环境中捕获值的所有权
-    // 这一技术在我们创建新线程时尤其有用，它可以跨线程地传递某些值的所有权
-    
-    // let v = vec![1, 2, 3];
-
-    // let handle = thread::spawn(|| {
-    //     println!("Here's a vector: {:?}", v);
-    // });
-
-    // handle.join().unwrap();
-    // 由于代码中的闭包使用了 v，所以它会捕获v并使其成为闭包环境的一部分
-    // 又因为 thread::spawn 会在新线程中运行这个闭包，所以我们应当能够在新线程中访问 v
-    // 但实际上，会编译出错：
-    //  closure may outlive the current function, but it borrows `v`, which is owned by the current function
-    // 上面的报错信息说的是：闭包可能在当前的函数之外存活，但是它借用的 v 却是被当前函数拥有
-
-    // Rust 不知道新线程会运行多久，所以它无法确定 v 的引用是否一直有效
-
-    // 下面的代码展示了在新线程中引用了 v，但是 v 在线程开始运行前被丢弃了
-    // let v = vec![1, 2, 3];
-    // let handle = thread::spawn(|| {
-    //     println!("Here's a vector: {:?}", v);
-    // });
-    // drop(v); // 情况不妙
-    // handle.join().unwrap();
-
-    // 如果Rust允许我们运行这段代码，那么新线程有极大的概率会在创建后被立即置入后台，不再被执行
-    // 此时的新线程在内部持有了 v 的引用，但主线程却已经通过 drop 函数将 v 丢弃了
-    // 当新线程随后开始执行时，v 和指向它的引用全部失效了
-    
-    // 那么怎么解决这个问题呢，答案是使用 move 关键字定义闭包
-    // 然后将外界变量的所有权转移到闭包内
-    let v = vec![1, 2, 3];
-    let handle = thread::spawn(move || {
-        println!("Here's a vector: {:?}", v);
-    });
-    drop(v); // 情况不妙
-    handle.join().unwrap();
-    // 使用，那么随后在主线程中调用 drop 会发生什么呢？而添加 move 又是否能够修复该示例中的编译错误呢？
-    // 遗憾的是，当我们在闭包上添加 move 后，调用 drop 函数删除 v，同样会编译失败
-    // 这是因为 move 将 v 移动到了闭包的环境中，所以我们无法在主线程中继续使用它来调用 drop 函数了
-
-    // 输出的错误信息如下：
-    // error[E0382]: use of moved value: `v`
-    //    --> src/main.rs:126:10
+    // 上面的代码依旧编译不通过，报错信息如下：
+    //     error[E0382]: use of moved value: `counter`
+    //   --> src\main.rs:93:33
     //    |
-    // 122 |     let v = vec![1, 2, 3];
-    //    |         - move occurs because `v` has type `Vec<i32>`, which does not implement the `Copy` trait
-    // 123 |     let handle = thread::spawn(move || {
+    // 46 |     let counter = Mutex::new(0);
+    //    |         ------- move occurs because `counter` has type `Mutex<i32>`, which does not implement the `Copy` trait
+    // ...
+    // 86 |     let handle = thread::spawn(move || {
     //    |                                ------- value moved into closure here
-    // 124 |         println!("Here's a vector: {:?}", v);
-    //    |                                           - variable moved due to use in closure
-    // 125 |     });
-    // 126 |     drop(v); // 情况不妙
-    //    |          ^ value used here after move
+    // 87 |         let mut num = counter.lock().unwrap();
+    //    |                       ------- variable moved due to use in closure
+    // ...
+    // 93 |     let handle2 = thread::spawn(move || {
+    //    |                                 ^^^^^^^ value used here after move
+    // 94 |         let mut num2 = counter.lock().unwrap();
+    //    |                        ------- use occurs due to use in closure
 
-    // 因为 Rust 只会在新线程中保守地借用 v，这也就意味着主线程可以从理论上让新线程持有的引用失效
-    // 通过将 v 的所有权转移给新线程，我们就可以向 Rust 保证主线程不会再次使用 v
-    // 如果我们在主线程中使用 v，那么就违反所有权规则
+    // 上面保报错的信息说明：counter 已经移动到 handle 线程的闭包中，因此，我们不应该在 handle2 中使用
+
+    // 使用 Rc<T> 指针解决所有权问题
+
+    // 使用 Rc 指针包裹 Mutex 实例
+    // let counter = Rc::new(Mutex::new(0));
+    //
+    // let mut handles = vec![];
+    //
+    // for _ in 0..10 {
+    //
+    //     // 对 Rc<T> 实例进行复制，使得多个线程可以持有 counter 所有权
+    //     let counter = Rc::clone(&counter);
+    //     let handle = thread::spawn(move || {
+    //         let mut num = counter.lock().unwrap();
+    //         *num += 1;
+    //     });
+    //     handles.push(handle);
+    // }
+    // for handle in handles {
+    //     handle.join().unwrap();
+    // }
+    // println!("Result: {}", *counter.lock().unwrap());
+
+    // 编译上面的代码，还是报错，报错信息如下：
+    // error[E0277]: `Rc<Mutex<i32>>` cannot be sent between threads safely
+    //    --> src\main.rs:134:36
+    //     |
+    // 134 |           let handle = thread::spawn(move || {
+    //     |                        ------------- ^------
+    //     |                        |             |
+    //     |  ______________________|_____________within this `[closure@src\main.rs:134:36: 134:43]`
+    //     | |                      |
+    //     | |                      required by a bound introduced by this call
+    // 135 | |             let mut num = counter.lock().unwrap();
+    // 136 | |             *num += 1;
+    // 137 | |         });
+    //     | |_________^ `Rc<Mutex<i32>>` cannot be sent between threads safely
+    //     |
+    //     = help: within `[closure@src\main.rs:134:36: 134:43]`, the trait `Send` is not implemented for `Rc<Mutex<i32>>`
+    // note: required because it's used within this closure
+    //    --> src\main.rs:134:36
+    //     |
+    // 134 |         let handle = thread::spawn(move || {
+    //     |                                    ^^^^^^^
+    // note: required by a bound in `spawn`
+    //    --> C:\Users\wzy\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\thread\mod.rs:712:8
+    //     |
+    // 712 |     F: Send + 'static,
+    //     |
+
+    // 编译出错的原因：    `Rc<Mutex<i32>>` cannot be sent between threads safely
+    // Rc<Mutex<i32>> 类型不能在线程之间安全的传递
+    // the trait `Send` is not implemented for `Rc<Mutex<i32>>`
+    //     `Rc<Mutex<i32>> 类型没有实现 Send trait
+    // 因为 Rc<T> 不能用于线程之间的数据传递
+    // Rc<T>在跨线程使用时并不安全。当Rc<T>管理引用计数时，它会在每次调用clone的过程中增加引用计数
+    // 并在克隆出的实例被丢弃时减少引用计数，但它并没有使用任何并发原语来保证修改计数的过程不会被另一个线程所打断
+    // 这极有可能导致计数错误并产生诡异的bug，比如内存泄漏或值在使用时被莫名其妙地提前释放
+    // 我们需要的是一个行为与Rc<T>一致，且能够保证线程安全的引用计数类型
+
+    // 原子引用计数 Arc<T>
+    // 幸运的是，我们拥有一种被称为 Arc<T> 的类型，它既拥有类似于 Rc<T> 的行为，又保证了自己可以被安全地用于并发场景
+    // 它名称中的 A 代表着原子（ atomic ）， 表明自己是一个原子引用计数（atomically reference counted）类型
+    // 原子是一种新的并发原语，我们可以参考标准库文档中的 std::sync::atomic 部分来获得更多相关信息
+    // 我们现在只需要知道：原子和原生类型的用法十分相似，并且可以安全地在多个线程间共享
+
+    // Arc<T> 与 Rc<T> 类型的用法一样
+    let counter = Arc::new(Mutex::new(0));
+
+        let mut handles = vec![];
+
+        for _ in 0..10 {
+
+            // 对 Rc<T> 实例进行复制，使得多个线程可以持有 counter 所有权
+            let counter = Arc::clone(&counter);
+            let handle = thread::spawn(move || {
+                let mut num = counter.lock().unwrap();
+                *num += 1;
+            });
+            handles.push(handle);
+        }
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Result: 10
+        println!("Result: {}", *counter.lock().unwrap());
+
+    // 虽然 counter 本身不可变，但我们仍然能够获取其内部值的可变引用
+    // 这意味着，Mutex<T>与Cell系列类型有着相似的功能，它同样提供了内部可变性
+    // RefCell<T> 来改变 Rc<T> 中的内容，而上面的方式使用 Mutex<T> 来改变 Arc<T> 中的内容
+    //
+    //
+    // 另外还有一个值得注意的细节是，Rust 并不能使你完全避免使用Mutex<T>过程中所有的逻辑错误
+    // 使用 Rc<T> 会有产生循环引用的风险。两个 Rc<T> 值在互相指向对方时会造成内存泄漏
+    // 与之类似，使用 Mutex<T>也会有产生死锁 （deadlock）的风险
+    // 当某个操作需要同时锁住两个资源，而两个线程分别持有其中一个锁并相互请求另外一个锁时，这两个线程就会陷入无穷尽的等待过程
 }
+
+// 允许线程间转移所有权的 Send trait
+
+// 只有实现了 Send trait 的类型才可以安全地在线程间转移所有权
+// 除了 Rc<T> 等极少数的类型，几乎所有的Rust类型都实现了Send trait：如果你将克隆后的Rc<T>值的所有权转移到了另外一个线程中
+// 那么两个线程就有可能同时更新引用计数值并进而导致计数错误。因此，Rc<T>只被设计在单线程场景中使用，它也无须为线程安全付出额外的性能开销
+
+// 因此，Rust 的类型系统与 trait 约束能够阻止我们意外地跨线程传递 Rc<T> 实例
+// 使用 Rc<T> 这类操作时立马触发了编译时错误： the trait Send is not implemented forRc&t;Mutex<i32>>
+// 而当我们切换到实现了 Send 的 Arc<T> 后，那段代码就顺利地编译通过了
+
+// 任何完全由 Send 类型组成的复合类型都会被自动标记为 Send。除了裸指针
+// 几乎所有的原生类型都满足Send 约束
+
+
+// 允许多线程同时访问的 Sync trait
+
+// 只有实现了 Sync trait 的类型才可以安全地被多个线程引用
+// 换句话说，对于任何类型 T，如果 &T（也就是T的引用）满足约束 Send，那么T就是满足 Sync 的
+// 这意味着 T 的引用能够被安全地传递至另外的线程中
+// 与 Send 类似，所有原生类型都满足 Sync 约束，而完全由满足 Sync 的类型组成的复合类型也都会被自动识别为满足 Sync 的类型
+// 智能指针 Rc<T> 同样不满足Sync约束，其原因与它不满足 Send 约束类似
+// RefCell<T> 类型及 Cell<T> 系列类型也不满足Sync 约束
+// RefCell<T> 实现的运行时借用检查并没有提供有关线程安全的保证
+// 智能指针 Mutex<T> 是 Sync 的，可以被多个线程共享访问
+
+
+// 手动实现 Send 和 Sync 是不安全的
+
+// 当某个类型完全由实现了 Send 与 Sync 的类型组成时，它就会自动实现 Send 与 Sync
+// 因此，我们并不需要手动地为此种类型实现相关 trait
+// 作为标签 trait，Send 与 Sync 甚至没有任何可供实现的方法
+
+// 它们仅仅被用来强化与并发相关的不可变性。
+
+// 手动实现这些 trait 涉及使用特殊的不安全Rust代码。
+// 需要注意的是，当你构建的自定义并发类型包含了没有实现 Send 或 Sync 的类型时
+// 你必须要非常谨慎地确保设计能够满足线程间的安全性要求
+// Rust 官方网站中的 The Rustonomicon 文档详细地讨论了此类安全性保证及如何满足安全性要求的具体技术

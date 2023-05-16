@@ -40,7 +40,17 @@ pub trait Draw {
 
 
 // 但是，如果我们将 Clone 作为 trait 对象，那么编译器会报错，指出：指出违反了对象安全规则的地方
+// error[E0038]: the trait `Clone` cannot be made into an object
+//   --> src/lib.rs:44:29
+//   |
+// 44 |     pub components: Vec<Box<dyn Clone>>
+//   |                             ^^^^^^^^^ `Clone` cannot be made into an object
 
+// 上面的报错信息指出，我们不能将 Clone trait 作为 trait 对象
+
+// pub struct Screen3 {
+//     pub components: Vec<Box<dyn Clone>>
+// }
 
 
 // 定义一个持有 components 动态数组的 Screen 结构体

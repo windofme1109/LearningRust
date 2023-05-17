@@ -20,6 +20,30 @@
 // 例如，假设某人试图跳过审批过程来直接发布草稿状态的文章， 那么我们的程序应当阻止这一行为并保持文章的草稿状态
 
 
+use blog::Post;
+
+// todo
+// 1. 添加reject方法，它可以将文章的状态从 PendingReview 修改为 Draft
+// 2. 为了将文章状态修改为 Published ， 用 户 需 要 调 用 两 次 approve
+// 3. 用户只有在文章处于 Draft 状态时才能够修改文本内容（提示：将改变内容的职责从Post转移至状态对象）
+
+
+// 状态模式的缺点
+// 1. 因为状态实现了状态间的转移，所以某些状态之间是相互耦合的
+// 如果我们希望在 PendingReview 和 Published 之间添加一个 Scheduled 状态 ， 那么我们就需要修改 PendingReview 中的代码来转移到 Scheduled 状态
+// 假如我们能够在新增状态时避免修改 PendingReview，那么虽然这会更加方便，但也意味着我们需要选用另外一种设计模式
+// 2. 我们需要重复实现一些代码逻辑
+// 你也许会试着提供默认实现，让 State trait 的request_review 和approve 方法默认返回 self
+// 但这样的代码违背了对象安全规则，因为 trait 无法确定 self 的具体类型究竟是什么
+// 如果我们希望将 State 当作 trait 对象来使用，那么它的方法就必须全部是对象安全的。
+
 fn main() {
-    println!("Hello, world!");
+    // println!("Hello, world!");
+    let mut post = Post::new();
+    post.add_text("I ate a salad for lunch today");
+    assert_eq!("", post.content());
+    post.request_review();
+    assert_eq!("", post.content());
+    post.approve();
+    assert_eq!("I ate a salad for lunch today", post.content());
 }

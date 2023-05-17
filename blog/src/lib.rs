@@ -81,24 +81,46 @@ trait State {
     // 我们为 State trait 添加了一个request_review方法，
     // 所有实现了这个 trait 的类型都必须实现这个 request_review 方法
     // 值得注意的是，request_review 的参数类型是 self: Box<Self>，而不是 self、&self 或 &mut self
-    // 这个语法意味着该方法只能被包裹着当前类型的Box实例调用，它会在调用过程中获取 Box<Self> 的所有权并使旧的状态失效
+    // 这个语法意味着该方法只能被包裹着当前类型的 Box 实例调用，它会在调用过程中获取 Box<Self> 的所有权并使旧的状态失效
     // 从而将 Post 的状态值转换为一个新的状态
     fn request_review(self: Box<Self>) -> Box<dyn State>;
 
     // 添加一个 approve 的方法，函数签名和 request_review 类似，作用也类似
     fn approve(self: Box<Self>) -> Box<dyn State>;
 
-    // 我们为content方法添加了默认的trait实现，它会返回一个空的字符串切片
+    // 我们为 content 方法添加了默认的 trait 实现，它会返回一个空的字符串切片
     // 这使得我们可以不必在 Draft 和 PendingReview 结构体中重复实现 content
-    // Published 结构体会覆盖 content 方法并返回 post.content 的值
+    // Published 结构体会覆盖 content 方法并返回 blog.content 的值
 
-    // 注意，我们需要在这个方法上添加相关的生命周期标注，正如在这个方法的实现需要接收 post 的引用作为参数
-    // 并返回 post 中某一部分的引用作为结果，因此，该方法中返回值的生命周期应该与 post 参数的生命周期相关
+    // 注意，我们需要在这个方法上添加相关的生命周期标注，正如在这个方法的实现需要接收 blog 的引用作为参数
+    // 并返回 blog 中某一部分的引用作为结果，因此，该方法中返回值的生命周期应该与 blog 参数的生命周期相关
     fn content<'a>(&self, post: &'a Post) -> &'a str {
         ""
     }
 }
 
+
+// 结构体 Draft、PendingReview、Published 不承担具体功能，用作状态转移
+
+// State trait 定义了公共的方法：
+// request_review
+// approve
+// content
+
+// 每个结构体在实现 State trait 的时候，分别实现 request_review、approve，在具体实现过程中，实现了状态的转移
+
+// Draft -> PendingReview -> Published
+
+// 对于 Post 结构体而言，它定义了四个方法：
+// add_text
+// request_review
+// approve
+// content
+
+// add_text 添加内容
+// content 获取内容，但是在未完成审批之前，获取不到文章的内容（content）
+// request_review 申请审批，将初始的 Draft 转换为 PendingReview
+// approve 通过审批，将 state 转换为 Published
 
 // 文章的草案状态
 struct Draft {
@@ -107,7 +129,7 @@ struct Draft {
 
 // 为 Draft 状态实现 State trait
 impl State for Draft {
-    // 这里的 request_review 方法需要在 Box 中包含一个新的PendingReview结构体实例，这一状态意味着文章正在等待审批
+    // 这里的 request_review 方法需要在 Box 中包含一个新的 PendingReview 结构体实例，这一状态意味着文章正在等待审批
     // 实现了状态的转移
     fn request_review(self: Box<Self>) -> Box<dyn State> {
         Box::new(PendingReview {})

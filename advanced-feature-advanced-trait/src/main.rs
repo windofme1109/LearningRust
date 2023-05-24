@@ -223,12 +223,14 @@ impl Animal for Dog {
 // OutlinePrint 需要依赖于 Display trait 的功能，因此必须在声明 OutlinePrint trait 时指定 Display trait
 
 use std::fmt;
+use std::fmt::{Formatter, write};
+
 trait OutlinePrint: fmt::Display {
     fn outline_print(&self) {
         // 定义注明了 OutlinePrint 依赖于 Display trait，所以我们能够在随后的方法中使用 to_string 函数
         // 任何实现了 Display trait 的类型都会自动拥有这一函数
         // 如果你尝试去掉trait名后的冒号与 Display trait 并继续使用 to_string
-        // 那么Rust 就会因为无法在 当前作用域中找到 &Self 的 to_string 方法而抛出错误
+        // 那么 Rust 就会因为无法在当前作用域中找到 &Self 的 to_string 方法而抛出错误
         let output = self.to_string();
         let len = output.len();
         println!("{}", "*".repeat(len + 4));
@@ -286,15 +288,48 @@ impl OutlinePrint for Point2 {
 // 如果一个 trait 依赖了另外一个 trait，那么可以在定义时，添加对该 trait 的依赖
 // 为某个类型实现该 trait 的时候，必须要同时实现两个 trait
 
-// 
+// 5. 使用 newtype 模式在外部类型上实现外部trait
+// 前面提到过孤儿规则：只有当类型和对应 trait 中的任意一个定义在本地包内时，我们才能够为该类型实现这一trait
+//
+// 但实际上，你还可以使用 newtype 模式
+// 来巧妙地绕过这个限制，它会利用元组结构体创建出一个新的类型这个元组结构体只有一个字段
+// 是我们想要实现 trait 的类型的瘦封装（thin wrapper）
+// 由于封装后的类型位于本地包内，所以我们可以为这个壳类型实现对应的 trait
+
+// newtype 是一个来自 Haskell 编程语言的术语。值得注意的是，使用这一模式不会导致任何额外的运行时开销，封装后的类型会在编译过程中被优化掉
+
+// 孤儿规则会阻止我们直接为 Vec<T> 实现 Display
+// 因为 Display trait 与 Vec<T> 类型都被定义在外部包中
+// 为了解决这一问题，我们可以首先创建一个持有 Vec<T> 实例的 Wrapper 结构体
+// 接着，我们便可以为 Wrapper 实现 Display 并使用 Vec<T> 值
+
+struct Wrapper(Vec<String>);
+
+impl fmt::Display for Wrapper {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        // self 可以理解为是 Wrapper 的实例
+        // self.0可以访问内部的 Vec<T>，因为 Wrapper 是一个元组结构体，而 Vec<T> 是元组中序号为0的那个元素
+        write!(f, "[{}]", self.0.join(", "))
+    }
+}
+
+// newtype 这项技术仍然有它的不足之处：因为 Wrapper 是一个新的类型，所以它没有自己内部值的方法
+// 为了让 Wrapper 的行为与 Vec<T> 完全一致，我们需要在 Wrapper 中实现所有 Vec<T> 的方法
+// 并将这些方法委托给 self.0。假如我们希望新类型具有内部类型的所有方法
+// 那么我们也可以为 Wrapper 实现 Deref trait 来直接返回内部的类型
+
 
 fn main() {
     // println!("Hello, world!");
+
+    // 2. 默认泛型参数和运算符重载
     // 运算符重载 -自定义 + 运算符的行为，实现结构体 Point 之间的相加
     // assert_eq!(Point { x: 1, y: 0 } + Point { x: 2, y: 3 }, Point { x: 3, y: 3 });
 
     // assert_eq!(Millimeters(100) + Meters(1), Millimeters(1100));
 
+
+    // 3. 用于消除歧义的完全限定语法：调用相同名称的方法
     // 当我们在Human的实例上调用 fly 时，编译器会默认调用直接实现 在类型上的方法
     let person = Human;
     // *waving arms furiously*
@@ -351,5 +386,15 @@ fn main() {
         y: 3
     };
 
-    p.outline_print()
+    // **********
+    // *        *
+    // * (1, 3) *
+    // *        *
+    // **********
+    p.outline_print();
+
+    // 5. 使用 newtype 模式在外部类型上实现外部 trait
+    let w = Wrapper(vec![String::from("hello"), String::from("world")]);
+    // w = [hello, world]
+    println!("w = {}", w);
 }

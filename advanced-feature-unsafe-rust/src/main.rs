@@ -145,11 +145,52 @@ fn main() {
     // 常量和不可变静态变量看起来可能非常相似，但它们之间存在一个非常微妙的区别:
     // 静态变量的值在内存中拥有固定的地址，使用它的值总是会访问到同样的数据
     // 与之相反的是，常量则允许在任何被使用到的时候复制其数据
+    // 也就是说，任何时候访问到的静态变量，都是同一个数据
+    // 而访问常量，就不一定了
 
-    // 常量和静态变量之间的另外一个区别在于静态变量是可变的。需要注意的是，访问和修改可变的静态变量是不安全的
-    
+    // 常量和静态变量之间的另外一个区别在于静态变量是可变的
+    // 需要注意的是，访问和修改可变的静态变量是不安全的
+
+    add_to_count(3);
+    unsafe {
+        // COUNTER: 3
+        println!("COUNTER: {}", COUNTER)
+    }
+
+    // 实现不安全trait
+
+    // 最后一个只能在 unsafe 中执行的操作是实现某个不安全 trait
+    // 当某个 trait 中存在至少一个方法拥有编译器无法校验的不安全因素时，我们就称这个 trait 是不安全的
+    // 你可以在 trait 定义的前面加上 unsafe 关键字来声明一个不安全 trait
+    // 同时该 trait 也只能在 unsafe 代码块中实现
 }
 
+struct TestAr {
+
+}
+
+// 定义一个不安全的 trait
+unsafe trait Foo {
+    // 定义方法
+}
+// 通过使用unsafe impl，我们向Rust保证我们会手动维护好那些编译器无法验证的不安全因素
+unsafe impl Foo for TestAr {
+    // 对应方法的实现
+}
+
+
+// 声明一个可变的静态变量
+// 和正常变量一样，我们使用 mut 关键字来指定静态变量的可变性
+static mut COUNTER: u32 = 0;
+
+
+fn add_to_count(inc: u32) {
+    // 访问和修改可变的静态变量是不安全的
+    // 所以需要将其包裹在 unsafe 代码块中
+    unsafe {
+        COUNTER += inc;
+    }
+}
 
 // 声明一个静态变量
 static HELLO_WORLD: &str = "hello, world";
@@ -258,6 +299,7 @@ extern "C" {
 // 我们必须要禁用 Rust 编译器的改名功能
 
 // 定义一个可以在编译并链接后被 C 语言代码访问的 call_from_c 函数
+#[no_mangle]
 pub extern "C" fn call_from_c() {
     println!("Just called a Rust function from C!");
 }

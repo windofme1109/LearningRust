@@ -1,120 +1,105 @@
-// 动态大小类型和 Sized trait
-// Rust 需要在编译时获取一些特定的信息来完成自己的工作，比如应该为一个特定类型的值分配多少空间等
-// 但 Rust 的类型系统中又同时存在这样一处令人疑惑的角落： 动态大小类型（Dynamically Sized Type，DST）的概念
-// 它有时也被称作不确定大小类型（unsized type）
-
-// 我们讨论一下 str 的动态大小类型，注意，这里讨论的是 str 本身而不是 &str
-// str 正好是一个动态大小类型。我们只有在运行时才能确定字符串的长度
-// 这也意味着我们无法创建一个 str 类型的变量，或者使用str类型来作为函数的参数
-// 如下所示的代码无法正常工作：
-// let s1: str = "Hello there!";
-// let s2: str = "How's it going?"
-
-// Rust 需要在编译时确定某个特定类型的值究竟会占据多少内存，而同一类型的所有值都必须使用等量的内存
-// 假如Rust允许我们写出上面这样的代码，那么这两个 str 的值就必须要占据等量的空间
-// 但它们确实具有不同的长度：s1 需要 12 字节的存储空间，而 s2 则需要15字节
-// 这也是我们无法创建出动态大小类型变量的原因
-
-// 既然无法使用 str 动态类型创建变量
-// 我们应该使用 &str 字符串切片类型创建变量
-// 切片的数据结构中会存储数据的起始位置及切片的长度
-// 因此，尽管 &T 被视作存储了 T 所在内存地址的单个值
-// 但 &str 实际上是由两个值组成的：str 的地址与它的长度
-// 这也使我们可以在编译时确定 &str 值的大小：其长度为 usize 长度的两倍
-// 换句话说，无论 &str 指向了什么样的字符串，我们总是能够知道 &str 的大小
-// 这就是 Rust 中使用动态大小类型的通用方式：它们会附带一些额外的元数据来存储动态信息的大小
-// 我们在使用动态大小类型时总是会把它的值放在某种指针的后面
-
-// 我们可以将 str 与所有种类的指针组合起来，例如Box<str>或 Rc<str>等
-// 事实上，我们已经见到过类似的用法了，只不过当时使用了另外一种动态大小类型：trait
-// 每一个 trait 都是一个可以通过其名称来进行引用的动态大小类型
-
-// 为了处理动态大小类型，Rust 还提供了一个特殊的 Sized trait 来确定一个类型的大小在编译时是否可知
-// 编译时可计算出大小的类型会自动实现这一 trait
-// 另外，Rust 还会为每一个泛型函数隐式地添加 Sized 约束：
-
-// fn generic<T>(t: T) {
-//
-// }
-
-// 上面的泛型函数会被默认转换为：
-
-// fn generic<T :Sized>(t: T) {
-//
-// }
-
-// 在默认情况下，泛型函数只能被用于在编译时已经知道大小的类型
-// 但是，你可以通过如下所示的特殊语法来解除这一限制：
-// fn generic<T: ?Sized>(t: &T) {
-// // --略
-// --
-// }
-// ?Sized trait 约束表达了与 Sized 相反的含义，我们可以将它读作 “T可能是也可能不是Sized的”
-// 这个语法只能被用在 Sized 上，而不能被用于其他 trait
-
-// 另外还需要注意的是，我们将 t 参数的类型由 T 修改为了 &T。因为类型可能不是 Sized 的
-// 所以我们需要将它放置在某种指针的后面。在本例中，我们选择使用引用
+// 函数指针
+// 我们曾经讨论过如何将闭包传递给函数，但实际上你同样可以将普通函数传递至其他函数！
+// 这一技术可以帮助你将已经定义好的函数作为参数，而无须重新定义新的闭包
+// 函数会在传递的过程中被强制转换成 fn 类型，注意这里使用了小写字符 f 从而避免与 Fn 闭包 trait 相混淆
+// fn类型也就是所谓的函数指针（function pointer）
 
 
 fn main() {
     println!("Hello, world!");
-    // str 是动态类型，只能运行时才能确定其大小
-    // 因此像下面的代码时无法通过编译的：
-    // let s1: str = "Hello there!";
-    // let s2: str = "How's it going?";
-
-    // error[E0308]: mismatched types
-    //   --> src\main.rs:16:19
-    //    |
-    // 16 |     let s1: str = "Hello there!";
-    //    |             ---   ^^^^^^^^^^^^^^ expected `str`, found `&str`
-    //    |             |
-    //    |             expected due to this
-    //
-    // error[E0308]: mismatched types
-    //   --> src\main.rs:17:15
-    //    |
-    // 17 | let s2: str = "How's it going?";
-    //    |         ---   ^^^^^^^^^^^^^^^^^ expected `str`, found `&str`
-    //    |         |
-    //    |         expected due to this
-    //
-    // error[E0277]: the size for values of type `str` cannot be known at compilation time
-    //   --> src\main.rs:16:9
-    //    |
-    // 16 |     let s1: str = "Hello there!";
-    //    |         ^^ doesn't have a size known at compile-time
-    //    |
-    //    = help: the trait `Sized` is not implemented for `str`
-    //    = note: all local variables must have a statically known size
-    //    = help: unsized locals are gated as an unstable feature
-    // help: consider borrowing here
-    //    |
-    // 16 |     let s1: &str = "Hello there!";
-    //    |             +
-    //
-    // error[E0277]: the size for values of type `str` cannot be known at compilation time
-    //   --> src\main.rs:17:5
-    //    |
-    // 17 | let s2: str = "How's it going?";
-    //    |     ^^ doesn't have a size known at compile-time
-
-    // 上面的报错信息显示：值的大小无法在编译期间确定
+    
 
     // 函数指针
     // 向函数中传入函数，将 add_one 函数作为 do_twice 的参数
     let result = do_twice(add_one, 5);
     // The answer is: 12
     println!("The answer is: {}", result);
-    //
+    
+    // 数组的 Map 函数就可以接收闭包，也可以接收普通的函数作为参数
+
+    let list_of_numbers = vec![1, 2, 3];
+    // map 函数接收闭包作为参数，将数字转换为字符串
+    let list_of_strings: Vec<String> = 
+    list_of_numbers
+    .iter()
+    .map(|i| {
+        i.to_string()
+    })
+    .collect();
+
+    // map 函数接收普通函数作为参数，将数字转换为字符串
+    let list_of_strings2: Vec<String> = 
+    list_of_numbers
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+
+    // 注意：
+    // 这里调用 to_string 必须使用完全限定语法，因为此作用域中存在多个可用的 to_string 函数
+    // 本例使用的是 ToString trait中的to_string函数
+    // 而标准库已经为所有实现了 Display 的类型都自动实现了这一trait
+
+    // 另外还有一种十分有用的模式，它利用了元组结构体和元组结构枚举变体的实现细节
+    // 这些类型的初始化语法()与调用函数有些相似
+    // 实际上，它们的构造器也确实被实现为了函数，该函数会接收它们的参数并返回一个新的实例
+    // 因此，我们可以把构造器视作实现了闭包 trait 的函数指针，并在那些接收闭包的方法中使用它们
+    // 
+    // 也就是说，可以将元组结构体、枚举的变体的初始化过程当做一个闭包（函数）
+    // 并可以将其传入接收闭包或者函数的函数中
+    let list_of_statuses: Vec<Status> =
+        (0u32..20)
+        .map(Status::Value)
+        .collect();
+
+
+
+        // 由于闭包使用了 trait 来进行表达，所以你无法在函数中直接返回一个闭包
+        // 在大多数希望返回 trait 的情形下，你可以将一个实现了该 trait 的具体类型作为函数的返回值
+        // 但你无法对闭包执行同样的操作，因为闭包没有一个可供返回的具体类型;例如，你无法把函数指针 fn 用作返回类型
+
+        // 也就是说，Rust 无法直接返回一个闭包或者是函数
+
 }
 
 
-// 函数指针
-// 我们曾经讨论过如何将闭包传递给函数，但实际上你同样可以将普通函数传递至其他函数！
-// 这一技术可以帮助你将已经定义好的函数作为参数，而无须重新定义新的闭包
-// 函数会在传递的过程中被强制转换成 fn 类型，注意这里使用了小写字符 f 从而避免与 Fn 闭包 trait相混淆
-// fn类型也就是所谓的函数指针（function pointer）
+// 在一个函数中，尝试返回闭包
+// 编译过程中，会报错：
+// error[E0782]: trait objects must include the `dyn` keyword
+//   --> src/main.rs:64:25
+//   |
+// 64 | fn returns_closure() -> Fn(i32) -> i32 {
+//   |                         ^^^^^^^^^^^^^^
+//   |
+// help: add `dyn` keyword before this trait
+//   |
+// 64 | fn returns_closure() -> dyn Fn(i32) -> i32 {
+//   |  
+// trait 对象必须使用 dyn 关键字
+// fn returns_closure() -> Fn(i32) -> i32 {
+//     |x| x + 1
+// }
+
+// 单独添加 dyn 关键字，也会报错：
+// error[E0746]: return type cannot have an unboxed trait object
+//   --> src/main.rs:83:25
+//   |
+// 83 | fn returns_closure() -> dyn Fn(i32) -> i32 {
+//   |                         ^^^^^^^^^^^^^^^^^^ doesn't have a size known at compile-time
+//   |
+// 是因为 Rust 不知道返回的闭包的大小
+// fn returns_closure() -> dyn Fn(i32) -> i32 {
+//     |x| x + 1
+// }
+
+// 因此，需要使用智能指针将返回的闭包包裹
+fn returns_closure() -> Box<dyn Fn(i32) -> i32> {
+    Box::new(|x| x + 1)
+}
+
+enum Status {
+    Value(u32),
+Stop, }
+
 
 fn add_one(x: i32) -> i32 {
     x + 1
@@ -135,5 +120,5 @@ fn do_twice(f: fn(i32) -> i32, arg: i32) -> i32 {
 // 所以我们总是可以把函数指针用作参数传递给一个接收闭包的函数
 // 也正是出于这一原因，我们倾向于使用搭配闭包 trait 的泛型来编写函数，这样的函数可以同时处理闭包与普通函数
 
-// 当然，在某些情形下，我们可能只想接收fn而不想接收闭包
+// 当然，在某些情形下，我们可能只想接收 fn 而不想接收闭包
 // 比如与某种不支持闭包的外部代码进行交互时：C函数可以接收函数作为参数，但它却没有闭包

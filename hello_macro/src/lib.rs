@@ -1,10 +1,11 @@
 // 自定义 derive 宏
 // 并在其中定义一个拥有关联函数 hello_macro 的 HelloMacro trait
-// 为了避免用户在他们的每一 个类型上逐一实现 HelloMacro trait，我们会提供一个能够自动实现 trait 的过程宏
-// 这使用户可以在他们的类型上标注#[derive(HelloMacro)]，进而得到 hello_macro 函数的默认实现
-// 即将 文本 Hello Macro! My name is TypeName! 中的 TypeName 替换为当前类型的名称后打印出来
+// 为了避免用户在他们的每一个类型上逐一实现 HelloMacro trait，我们会提供一个能够自动实现 trait 的过程宏
+// 这使用户可以在他们的类型上标注 #[derive(HelloMacro)]，进而得到 hello_macro 函数的默认实现
+// 即将文本 Hello Macro! My name is TypeName! 中的 TypeName 替换为当前类型的名称后打印出来
 
-// 给每个标注了 #[derive(HelloMacro)] 的结构体实现 HelloMacro trait
+// 定义一个给每个标注了 #[derive(HelloMacro)] 的结构体需要实现的 HelloMacro trait
+// 这个 trait 需要和 HelloMacro 宏一样，导入到需要使用的地方
 pub trait HelloMacro {
     fn hello_macro();
 }

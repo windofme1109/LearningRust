@@ -13,7 +13,7 @@
 use std::net::TcpListener;
 use std::net::TcpStream;
 use std::io::prelude::*;
-
+use std::fs;
 
 fn main() {
     // TcpListener 用来建立一个 TCP socket 服务器，监听 TCP 连接
@@ -24,7 +24,7 @@ fn main() {
     // 比如，连接到端口 80 需要管理员权限(非管理员只能监听大于 1024 的端口)，
     // 当我们以非管理员身份尝试连接到 80 端口时就会被系统拒绝从而失败
     // 另外，假如我们运行了 2 个监听到同一地址上的程序实例，那么绑定也不会成功
-    let linstener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    let linstener = TcpListener::bind("127.0.0.1:9009").unwrap();
 
     // TcpListener 上的 incoming 方法会返回一个产生流序列的迭代器，更准确地说，是TcpStream 类型的流
     // 单个流 (stream) 代表了一个在客户端和服务器之间打开的连接
@@ -59,9 +59,52 @@ fn handle_connection(mut stream: TcpStream) {
 
 
     // 编写 http 响应
-    let response = "HTTP/1.1 200 OK\r\n\r\n";
-    stream.write(response.as_bytes()).unwrap();
-    stream.flush();
+    // 只有状态行，没有响应头和响应头
+    // let response = "HTTP/1.1 200 OK\r\n\r\n";
+
+    // 缓冲区接收的数据都是原始字节，所以我们使用字节字符串语法 b"" 将 get 的文本内容转换为字节字符串
+    // get 表示我们请求的路径
+    let get = b"GET / HTTP/1.1\r\n";
+
+    if buffer.starts_with(get) {
+        // 检查我们收到的请求行是不是以指定的 get 开头
+        // 即是不是指定的路径
+
+        let contents = fs::read_to_string("hello.html").unwrap();
+        // format! 格式化给定的字符串，将 html 内容与请求行拼接成完整的 http 响应
+        let response = format!("HTTP/1.1 200 OK\r\n\r\n{}", contents);
+        stream.write(response.as_bytes()).unwrap();
+        stream.flush().unwrap();
+    } else {
+
+        // 当访问路径不是 / 时，将返回 404 状态
+        let status_line = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
+        let contents = fs::read_to_string("404.html").unwrap();
+        let response = format!("{}{}", status_line, contents);
+        stream.write(response.as_bytes()).unwrap();
+        stream.flush().unwrap();
+    }
+
+    // 读取 html 文件，并作为响应返回
+
+    // 读取 html 文件中的内容
+    // 直接调用 fs 模块中的 read_to_string 方法，将整个文件内容转换为字符串
+    // let contents = fs::read_to_string("hello.html").unwrap();
+    //
+    // // format! 格式化给定的字符串，将 html 内容与请求行拼接成完整的 http 响应
+    // let response = format!("HTTP/1.1 200 OK\r\n\r\n{}", contents);
+    //
+    // // println!("Response: {}", response);
+    // // write 方法的作用是：将buffer 中的数据写入 这个 writer 中
+    // // 方法只接收 &[u8] 类型值作为参数，所以我们需要调用 response 的 as_bytes 方法来将它的字符串转换为字节
+    // // 并将这些字节发送到连接中去
+    // // 因为 write 操作可能会失败， 所以我们如同往常一样使用了 unwrap，它会在出现错误时简单地中止程序
+    // stream.write(response.as_bytes()).unwrap();
+    //
+    // // flush 方法的作用是：刷新此输出流，确保所有中间缓冲的内容都到达目的地
+    // // 最后的flush调用会等待并阻止程序继续运行直到所有字节都被写入连接中
+    // // 为了减少对底层操作系统的调用，TcpStream的实现中包含了一个内部缓冲区
+    // stream.flush().unwrap();
 
     // 我们将缓冲区中的字节转换成字符串并打印了出来
     // 函数 String:: from_utf8_lossy 可以接收一个 &[u8] 并产生对应的 String

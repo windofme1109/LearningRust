@@ -1,5 +1,8 @@
 // 构建 Web 服务器
+
 // 多线程服务器
+
+// 目前 main 文件 在 src 的 bin 目录下，所以，当前 hello 目录中的主包就是代码包（lib.rs），而不是二进制包
 
 use std::net::TcpListener;
 use std::net::TcpStream;
@@ -8,18 +11,42 @@ use std::fs;
 use std::time::Duration;
 use std::thread;
 
+use hello::ThreadPool;
+
+// 添加线程池
+
+// 线程池(thread pool)是一组预先分配出来的线程，它们被用于等待并随时处理可能的任务
+// 当程序接到一个新任务时，它会将线程池中的一个线程分配给这个任务，并让该线程处理这个任务
+// 线程池中其余可用的线程能够在第一个线程处理任务时接收其他到来的任务
+// 当第一个线程处理完它的任务后，我们会将它放回线程池，并使 其变为空闲状态以准备处理新的任务
+// 一个线程池允许你并发地处理 连接，从而增加服务器的吞吐量。
+
+// 不同于无限制地创建线程，线程池中只会有固定数量的等待线程
+// 新连接进来的请求会被发送至线程池中处理，而线程池则维护了一个接收请求的队列
+// 池中可用的线程会从这个请求队列中取出请求并处理，然后再向队列索要下一个请求
+// 基于这种设计，我们可以同 时处理 N 个请求，这里的 N 也就是线程数量
+// 当所有的线程都在处理慢请求时，随后的请求依然会被阻塞在等待队列中
+// 虽然没能完全避免阻塞的出现，但我们增加了可同时处理的慢请求数量
+
 fn main() {
 
     let linstener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
-   
+    // 创建一个可以配置线程数量的线程池，将线程池中，线程的数量配置为 4
+    let pool = ThreadPool::new(4);
     for stream in linstener.incoming() {
-        
         let stream = stream.unwrap();
-        // println!("Connection established");
+            // println!("Connection established");
+        // 为每个连接都创建一个线程去处理
+        // execute 方法接收一个闭包，并将它分配给线程池中的线程去执行
+        pool.execute(|| {
+            // handle_connection(stream);
+            
 
-        // 从 tcp 流中读取数据
-        handle_connection(stream);
+            // 从 tcp 流中读取数据
+            handle_connection(stream);
+        });
+        
     }
 }
 

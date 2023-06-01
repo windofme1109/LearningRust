@@ -1,6 +1,5 @@
 use std::sync::mpsc;
 use std::thread;
-use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -15,8 +14,24 @@ pub struct ThreadPool {
     workers: Vec<Worker>,
     // 定义一个 sender 属性，用来持有 channel 的发送端
     // 作用是向线程中发送需要执行的代码
-    sender: mpsc::Sender<Job>
+    // sender: mpsc::Sender<Job>
+
+    // 将 Job 类型修改为 Message
+    sender: mpsc::Sender<Message>
 }
+
+// 定义一个枚举
+enum Message {
+    // 需要运行 Job 的 NewJob 变体
+    NewJob(Job),
+    // 线程退出循环并停止的 Terminate 变体
+    Terminate
+}
+
+// struct Job {
+
+// }
+
 // Job 类型作为 Box 指针的类型别名，用来持有闭包
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
@@ -26,32 +41,66 @@ impl Drop for ThreadPool {
     // 为 ThreadPool 实现 Drop 方法
     // 用池中每个线程的 join 方法，从而使它们能够在关闭前完成当前正在处理的工作
     fn drop(&mut self) {
+
+
+        println!("Sending terminate message to all workers.");
+
+        // 第一次循环次向每个 worker 发送了 Terminate 消息
+        for _ in &mut self.workers {
+            self.sender.send(Message::Terminate).unwrap();
+        }
+
+        println!("Shutting down all workers.");
+
         // 首先遍历了线程池中所有的workers
         // 这里使用了 &mut，因为我们需要修改 worker 且正好 self 本身是一个可变引用
         // 针对遍历中的每一个 worker，代码会打印出信息来表明当前的 worker 正在停止运行
         // 并会接着在它的线程上调用join
         // 假如 join 调用失败，随后的 unwrap 就会触发 panic 并进入不那么优雅的关闭过程
+        //
+        // 第二次则在每个 worker 的线程上调用了 join
+        // 如果我们尝试在同一个循环中发送消息并立即调用 join，那么就无法保证当前正在迭代的 worker 就是从通道中获得消息的那一个
         for worker in &mut self.workers {
             println!("Shutting down worker {}", worker.id);
             // 直接调用 join 方法会报错
             // error[E0507]: cannot move out of `worker.thread` which is behind a mutable reference
             //     --> src/lib.rs:26:13
             //     |
-            // 26   |             worker.thread.join().unwrap();
+            // 26  |             worker.thread.join().unwrap();
             //     |             ^^^^^^^^^^^^^ ------ `worker.thread` moved due to this method call
             //     |             |
             //     |             move occurs because `worker.thread` has type `JoinHandle<()>`, which does not implement the `Copy` trait
-    |
-            worker.thread.join().unwrap();
+
+            // 这个错误意味着我们不能调用 join，因为当前的代码仅仅是可变借用了worker
+            // 而 join 方法则要求取得其参数的所有权。为了解决这一问题，我们需要把线程移出拥有其所有权的 Worker 实例，以便 join 可以消耗掉它
+            // 如果 Worker 持有的是一个 Option<thread::JoinHandle<()>>
+            // 那么我们就可以在 Option 上调用 take 方法来将 Some 变体的值移出来
+            // 并在原来的位置留下 None 变体
+            // 换句话说，正在运行中的 Worker 会在 thread 中持有一个 Some 变体
+            // 当我们希望清理 Worker 时，就可以使用 None 来替换掉 Some，从而使 Worker 失去可以运行的线程
+            // worker.thread.join().unwrap();
+
+
+            // 为 Option 值调用 take 方法会将 Some 变体的值移出并在原来的位置留下None变体
+            // 使用了 if let 来解构 Some 从而得到线程，并接着在这个线程上调用了 join
+            // 当某个 Worker 的线程值是 None 时，我们就知道 worker 已经清理了这个线程而无须进行任何操作
+            if let Some(thread) = worker.thread.take() {
+                thread.join().unwrap();
+            }
         }
+
+        // 为了更好地理解为何需要两个循环，你可以想象一下拥有两个worker 的场景
+        // 如果我们使用单个循环来迭代所有的 worker，那么在进行首次迭代时，代码会将一个结束信息发送到通道中后接着在第一个 worker 线程上调用join
+        // 假设这个 worker 正好忙于处理其他请求，那么第二个 worker 就会从通道中获取这个结束信息并退出自己的循环
+        // 由于结束信号被第二个线程截取了，所以我们等待的第一个worker线程永远不会停止。一次死锁事件发生了！
+
+        // 为了阻止这种情况的发生，我们首先用一个循环把全部 Terminate 消息发送到通道中，随后再到另一个循环中等待所有的进程结束
+        // 由于 worker 会在收到结束信号后停止接收请求，所以只要我们在调用 join 之前发送了与 workers 数目相等的结束消息
+        // 就可以确保每一个  worker 都能够收到自己的结束信号
     }
 }
 
-// struct Job {
 
-// }
-
-type Job = Box<dyn FnOnce() + Send + 'static>;
 // 为什么需要一个单独的 Worker 类型呢
 // 因为按照我们之前的设定，我们使用 thread::spawn 创建线程，spawn 方法接收一个闭包作为参数
 // spawn 方法在创建完线程以后会立即执行自己接收到的代码参数
@@ -64,12 +113,15 @@ type Job = Box<dyn FnOnce() + Send + 'static>;
 // thread 属性用来持有 JoinHandle，也就是一个线程
 struct Worker {
     id: usize,
-    thread: thread::JoinHandle<()>
+    // thread: thread::JoinHandle<()>
+    thread: Option<thread::JoinHandle<()>>
 
 }
 
 impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+    // fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+    // 将 receiver 的类型中的 Job 修改为 Message
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
         let thread = thread::spawn(move || {
             loop {
 
@@ -83,33 +135,36 @@ impl Worker {
                 // 与发送端的 send 方法类似，recv会在持有通道发送端的线程关闭时出现错误，所以我们同样使用了 unwrap 来拦截所有错误
                 // 调用 recv 会阻塞当前线程，当通道中不存在任务时，当前线程就会一直处于等待状态。而 Mutex<T> 则保证了一次只有一个 Worker 线程尝试请求任务
 
-                let job = receiver.lock().unwrap().recv().unwrap();
-                println!("Worker {} got a job; executing.", id);
-                job();
+                // let job = receiver.lock().unwrap().recv().unwrap();
+                let message = receiver.lock().unwrap().recv().unwrap();
+
+                // 因为 execute 方法会发送包裹着任务的 Message:NewJob 变体
+                // Worker::new 中的代码会从通道中接收并处理 Message，
+                // 并在收到 NewJob 变体时处理任务，在收到 Terminate 变体时退出循环
+                match message {
+                    Message::NewJob(job) => {
+                        println!("Worker {} got a job; executing.", id);
+                        job();
+                    },
+                    Message::Terminate => {
+                        println!("Worker {} was told to terminate.", id);
+                        break;
+                    }
+                }
+
+                // println!("Worker {} got a job; executing.", id);
+                // job();
 
                 // 通过使用 loop 并在循环代码块内部而不是外部请求锁和任务， lock 方法中返回的 MutexGuard 会在 let job 语句结束后被立即丢弃
                 // 这确保了我们只会在调用 recv 的过程中持有锁，并能够在调用 job()之前将锁释放。因此，我们的服务器才可以同时响应多个请求
             }
-
-    // new 函数接收 id 参数和 receiver
-    // receiver
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let thread = thread::spawn(|| {
-            // receiver;
-            loop {
-                let job = receiver.lock().unwrap().recv().unwrap();
-                println!("Worker {} got a job; executing.", id);
-                job();
-            }
-
         });
 
+         Worker {
+             id,
+             thread: Some(thread)
+         }
 
-
-        Worker { 
-            id, 
-            thread
-        }
     }
 }
 
@@ -188,6 +243,10 @@ impl ThreadPool {
         // 接收到闭包后会创建出一个新的Job实例，使用 Box 指针包裹一个函数类型
         let job = Box::new(f);
         // 将这个任务传递给通道的发送端，为了应对发送失败的情形，我们在 send 后直接调用了 unwrap
-        self.sender.send(job).unwrap();
+        // self.sender.send(job).unwrap();
+
+        // 通过通道发送的不再是 job 实例
+        // 而是发送 Message 枚举的 NewJob 变体
+        self.sender.send(Message::NewJob(job)).unwrap();
     }
 }

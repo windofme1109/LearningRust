@@ -34,7 +34,11 @@ fn main() {
 
     // 创建一个可以配置线程数量的线程池，将线程池中，线程的数量配置为 4
     let pool = ThreadPool::new(4);
-    for stream in linstener.incoming() {
+
+    // 测试我们的服务器是否会在接收两个请求以后就会停机
+    // 定义在 Iterator trait 中的 take 方法限制了我们的迭代过程最多只会进行两次
+    // 而 ThreadPool 则会在 main 函数结束时离开作用域，并调用自己的 drop 实现
+    for stream in linstener.incoming().take(2) {
         let stream = stream.unwrap();
             // println!("Connection established");
         // 为每个连接都创建一个线程去处理

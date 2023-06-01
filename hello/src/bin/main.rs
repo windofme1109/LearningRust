@@ -74,7 +74,7 @@ fn handle_connection(mut stream: TcpStream) {
         // 但如果你在加载 / 页面之前加载了 /sleep，那么你就会观察到/需要花费至少5秒钟才能渲染出成功响应的HTML页面
 
         // 因为我们只有一个线程，这个线程需要依次处理请求，如果前一个请求花费时间比较长，就会阻塞随后的请求队列
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(10));
         ("HTTP/1.1 200 OK\r\n\r\n", "hello.html")
     } else {
         ("HTTP/1.1 404 NOT FOUND\r\n\r\n", "404.html")

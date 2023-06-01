@@ -1,8 +1,9 @@
 use std::sync::mpsc;
 use std::thread;
-
+use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
+
 
 pub struct ThreadPool {
     // thread 是动态数组实例，其元素的类型是：thread::JoinHandle<()>
@@ -16,10 +17,41 @@ pub struct ThreadPool {
     // 作用是向线程中发送需要执行的代码
     sender: mpsc::Sender<Job>
 }
-
 // Job 类型作为 Box 指针的类型别名，用来持有闭包
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
+impl Drop for ThreadPool {
+
+
+    // 为 ThreadPool 实现 Drop 方法
+    // 用池中每个线程的 join 方法，从而使它们能够在关闭前完成当前正在处理的工作
+    fn drop(&mut self) {
+        // 首先遍历了线程池中所有的workers
+        // 这里使用了 &mut，因为我们需要修改 worker 且正好 self 本身是一个可变引用
+        // 针对遍历中的每一个 worker，代码会打印出信息来表明当前的 worker 正在停止运行
+        // 并会接着在它的线程上调用join
+        // 假如 join 调用失败，随后的 unwrap 就会触发 panic 并进入不那么优雅的关闭过程
+        for worker in &mut self.workers {
+            println!("Shutting down worker {}", worker.id);
+            // 直接调用 join 方法会报错
+            // error[E0507]: cannot move out of `worker.thread` which is behind a mutable reference
+            //     --> src/lib.rs:26:13
+            //     |
+            // 26   |             worker.thread.join().unwrap();
+            //     |             ^^^^^^^^^^^^^ ------ `worker.thread` moved due to this method call
+            //     |             |
+            //     |             move occurs because `worker.thread` has type `JoinHandle<()>`, which does not implement the `Copy` trait
+    |
+            worker.thread.join().unwrap();
+        }
+    }
+}
+
+// struct Job {
+
+// }
+
+type Job = Box<dyn FnOnce() + Send + 'static>;
 // 为什么需要一个单独的 Worker 类型呢
 // 因为按照我们之前的设定，我们使用 thread::spawn 创建线程，spawn 方法接收一个闭包作为参数
 // spawn 方法在创建完线程以后会立即执行自己接收到的代码参数
@@ -37,6 +69,27 @@ struct Worker {
 }
 
 impl Worker {
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+        let thread = thread::spawn(move || {
+            loop {
+
+                // 首先调用了 receiver 的 lock 方法来请求互斥锁
+                // 并接着使用 unwrap 来处理可能出现的错误情形
+                // 请求获取锁的操作会在互斥体被污染时出错，而互斥体会在某个持有锁的线程崩溃而锁没有被正常释放时被污染
+                // 在这种情形下，调用 unwrap 触发当前线程的 panic 是非常恰当的行为
+                // 当然，你也可以将 unwrap 修改为 expect 来附带一个有意义的错误提示信息
+
+                // 在互斥体上得到锁以后，我们就可以通过调用 recv 来从通道中接收 Job 了
+                // 与发送端的 send 方法类似，recv会在持有通道发送端的线程关闭时出现错误，所以我们同样使用了 unwrap 来拦截所有错误
+                // 调用 recv 会阻塞当前线程，当通道中不存在任务时，当前线程就会一直处于等待状态。而 Mutex<T> 则保证了一次只有一个 Worker 线程尝试请求任务
+
+                let job = receiver.lock().unwrap().recv().unwrap();
+                println!("Worker {} got a job; executing.", id);
+                job();
+
+                // 通过使用 loop 并在循环代码块内部而不是外部请求锁和任务， lock 方法中返回的 MutexGuard 会在 let job 语句结束后被立即丢弃
+                // 这确保了我们只会在调用 recv 的过程中持有锁，并能够在调用 job()之前将锁释放。因此，我们的服务器才可以同时响应多个请求
+            }
 
     // new 函数接收 id 参数和 receiver
     // receiver
@@ -50,6 +103,8 @@ impl Worker {
             }
 
         });
+
+
 
         Worker { 
             id, 

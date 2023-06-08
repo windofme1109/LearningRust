@@ -141,7 +141,7 @@ async fn race_task() {
 // pin_mut!(t1, t2);
 
 // .fuse() 方法可以让 Future 实现 FusedFuture trait
-// 而 pin_mut! 宏会为 Future 实现 Unpin trait，这两个特征恰恰是使用 select 所必须的:
+// 而 pin_mut! 宏会为 Future 实现 Unpin trait，这两个 trait 恰恰是使用 select 所必须的:
 // 1. Unpin，由于 select 不会通过拿走所有权的方式使用 Future，而是通过可变引用的方式去使用
 //    这样当 select 结束后，该 Future 若没有被完成，它的所有权还可以继续被其它代码使用
 // 2. FusedFuture 的原因跟上面类似，当 Future 一旦完成后，那 select 就不能再对其进行轮询使用
@@ -149,7 +149,7 @@ async fn race_task() {
 // 只有实现了 FusedFuture，select 才能配合 loop 一起使用
 // 假如没有实现，就算一个 Future 已经完成了，它依然会被 select 不停的轮询执行
 
-// Stream 稍有不同，它们使用的特征是 FusedStream，通过 .fuse()(也可以手动实现)实现了该特征的 Stream
+// Stream 稍有不同，它们使用的 trait 是 FusedStream，通过 .fuse()(也可以手动实现)实现了该 trait 的 Stream
 // 对其调用 .next() 或 .try_next() 方法可以获取实现了 FusedFuture trait 的 Future
 
 use futures::{stream::{Stream, StreamExt, FusedStream}};
@@ -183,7 +183,6 @@ async fn add_two_streams(
 }
 
 
-
 // 在 select 循环中并发
 
 // 一个很实用但又鲜为人知的函数是 Fuse::terminated() ，可以使用它构建一个空的 Future 
@@ -193,40 +192,131 @@ async fn add_two_streams(
 
 use futures::{future::{Fuse, FusedFuture}};
 
+
+// 新建两个异步任务
 async fn get_new_num() -> u8 { /* ... */ 5 }
 
 async fn run_on_new_num(_: u8) { /* ... */ }
 
+/// interval_timer 参数，要求实现 Stream trait、FuseStream trait 和 Unpin trait
+/// interval_timer 是一个异步 Stream
 async fn run_loop(
     mut interval_timer: impl Stream<Item = u8> + FusedStream + Unpin,
     starting_num: u8
 ) {
+    // 生成一个 FusedFuture
     let run_on_new_num_fut = run_on_new_num(starting_num).fuse();
+
+    // terminated 创建一个已经终止的新的 Fuse-wrapped 的 future
+    // 这可以与循环 loop 和 select! 结合使用，在匹配过程中会绕过终止（terminated）的 future
     let get_new_num_fut = Fuse::terminated();
+
+    //
     pin_mut!(run_on_new_num_fut, get_new_num_fut);
 
+    // loop 可以理解为是在不停的轮询，看哪个异步任务完成
     loop {
         select! {
+            // select_next_some 方法作用：当 stream 中的下一项也是 Ready 状态会返回一个 ready 状态的 Future
+            // 该方法与 next 方法类似，但是区别是：如果在一个空的 stream 上，select_next_some 方法不会返回 None
+            // 取而代之的是，返回的 Future 类型将从 FusedFuture::is_terminated 方法中返回 true
+            // select_next_some 与 select! 可以一起使用
+            // interval_timer 是一个异步任务流
+            // select_next_some 会一步一步向下执行
             () = interval_timer.select_next_some() => {
-                // // 定时器已结束，若`get_new_num_fut`没有在运行，就创建一个新的
+                // 定时器已结束，若 get_new_num_fut 没有在运行，就创建一个新的
+                // 如果潜在的 Future 不会再被查询（polled），那么就返回 true
+                // 也就是说，get_new_num_fut 这个异步任务已经结束了
                 if get_new_num_fut.is_terminated() {
+                    // set 方法的作用是：为固定引用后面的内存分配一个新值
+                    // 这个操作会覆盖 pin 住的数据，但是这样做是没有关系的，其析构函数会在覆盖前运行，因此没有违反 pin 规则
+                    // 所以，我们这里使用新的异步任务替换原来的任务
                     get_new_num_fut.set(get_new_num().fuse())
+
+                    // 这里在 select! 宏内部创建新的异步任务，然后将其放到外部的容器中，这个容器就是 Fuse::terminated 方法创建的
                 }
             },
+            // get_new_num_fut 这个异步任务执行成功，返回一个数字
             new_num = get_new_num_fut => {
-                // 收到新的数字 -- 创建一个新的`run_on_new_num_fut`并丢弃掉旧的
+                // 收到新的数字 -- 创建一个新的 run_on_new_num_fut 并丢弃掉旧的
                 run_on_new_num_fut.set(run_on_new_num().fuse())
             },
-            // 运行 `run_on_new_num_fut`
+            // 运行 run_on_new_num_fut
             () = run_on_new_num_fut => {},
-            // 若所有任务都完成，直接 `panic`， 原因是 `interval_timer` 应该连续不断的产生值，而不是结束
-            // 后，执行到 `complete` 分支
+            // 若所有任务都完成，直接 panic
+            // 原因是 interval_timer 应该连续不断的产生值，而不是结束后，执行到 complete 分支
             complete => panic!("`interval_timer` completed unexpectedly")
         }
     }
 }
 
+// 当某个 Future 有多个拷贝都需要同时运行时，可以使用 FuturesUnordered 类型
+// 下面的例子跟上个例子大体相似，但是它会将 run_on_new_num_fut 的每一个拷贝都运行到完成
+// 而不是像之前那样一旦创建新的就终止旧的
 
+
+use futures::{stream::FuturesUnordered};
+
+// 使用从 get_new_num 获取的最新数字 来运行  run_on_new_num
+//
+// 每当计时器结束后，get_new_num 就会运行一次
+// 它会立即取消当前正在运行的 run_on_new_num
+// 并且使用新返回的值来替换
+async fn run_loop_2(
+    mut interval_timer: impl Stream<Item = ()> + FusedStream + Unpin,
+    starting_num: u8,
+) {
+    // FuturesUnordered 是一个结构体
+    // 其主要作用是：可以以任何顺序完成一系列的 future，体现了 unorder 的含义
+    // 这种结构经过优化，可以用来管理大量的 future
+    // 由 FuturesUnordered 管理的 future，只有在其生成 wake-up 通知时才会被轮询
+    // 这减少了轮询大量 future 所需的工作量
+    // 可以通过收集（collecting）由 future 组成的迭代器来填充 FuturesUnordered
+    //
+    // 或者将 futures 推到现有的 FuturesUnordered
+    // 添加新 future 时，必须调用 poll_next 才能开始接收新 future 的 wake-up
+    // 注意，可以通过 collect 方法创建一个现成的 FuturesUnordered
+    // 或者您可以使用 FuturesUnordered::new 构造函数创建一个空的集合
+    let mut run_on_new_num_futs = FuturesUnordered::new();
+
+    // 添加新的 future
+    run_on_new_num_futs.push(run_on_new_num(starting_num));
+
+    let get_new_num_fut = Fuse::terminated();
+
+    pin_mut!(get_new_num_fut);
+    loop {
+        select! {
+            () = interval_timer.select_next_some() => {
+                // 定时器已结束，若 get_new_num_fut 没有在运行，就创建一个新的
+                // 新的 get_new_num_fut 会覆盖原来的任务
+                if get_new_num_fut.is_terminated() {
+                    get_new_num_fut.set(get_new_num().fuse());
+                }
+            },
+            new_num = get_new_num_fut => {
+                // 收到新的数字 -- 创建一个新的 run_on_new_num_fut
+                // 这里没有覆盖前一个 future，而是向 run_on_new_num_futs 推送新的
+                run_on_new_num_futs.push(run_on_new_num(new_num));
+            },
+            // 运行 run_on_new_num_futs, 并检查是否有已经完成的
+            // 依次执行 run_on_new_num_futs 中的异步任务
+            res = run_on_new_num_futs.select_next_some() => {
+                println!("run_on_new_num_fut returned {:?}", res);
+            },
+            // 若所有任务都完成，直接 panic， 原因是 interval_timer 应该连续不断的产生值，而不是结束后，执行到 complete  分支
+            complete => panic!("`interval_timer` completed unexpectedly"),
+        }
+    }
+}
+
+// run_loop_2 的整体执行流程是：
+// 1. 定时异步流依次执行异步任务
+// 2. 每个定时任务执行结束：
+//    如果 get_new_num_fut 执行结束，那么创建一个新的任务 get_new_num_fut，并替换原来的任务
+// 3. 因为是 loop 循环，所以在等待定时异步任务流执行的同时，get_new_num_fut 也在执行，因此在 select 代码块中对应分支中，处理其执行成功的情况：
+//    创建一个新的 run_on_new_num_fut，并向 run_on_new_num_futs 推送新的 future
+// 4. 运行 run_on_new_num_futs 中的异步任务, 并检查是否有已经完成的
 
 use futures::future;
 

@@ -150,7 +150,77 @@ async fn race_task() {
 // 假如没有实现，就算一个 Future 已经完成了，它依然会被 select 不停的轮询执行
 
 // Stream 稍有不同，它们使用的特征是 FusedStream，通过 .fuse()(也可以手动实现)实现了该特征的 Stream
-// 对其调用 .next() 或 .try_next() 方法可以获取实现了 FusedFuture 特征的Future
+// 对其调用 .next() 或 .try_next() 方法可以获取实现了 FusedFuture trait 的 Future
+
+use futures::{stream::{Stream, StreamExt, FusedStream}};
+
+async fn add_two_streams(
+    mut s1: impl Stream<Item = u8> + FusedStream + Unpin,
+    mut s2: impl Stream<Item = u8> + FusedStream + Unpin
+
+) -> u8 {
+    let mut total = 0;
+    loop {
+
+        // 
+        let item = select! {
+            // s1 的 next 方法可以获得实现了 FusedFuture trait 的 Future
+            // 在 Future 变成 Ready 状态后，就能获取 Ready 包裹的值
+            // s1 和 s2 有一个 Future 变成 Ready 状态，那么整个代码块的返回值就是这个 Ready 包裹的值 
+            // Ready 状态中包裹的值就是 Some 变体
+            x = s1.next() => x,
+            x = s2.next() => x,
+            complete => break
+        };
+
+        // item 是 Some 变体，表示 item 成功的接收了异步 stream 任务的返回值
+        if let Some(next_num) = item {
+            total = next_num;
+        }
+    }
+
+    total
+}
+
+
+
+// 在 select 循环中并发
+
+// 一个很实用但又鲜为人知的函数是 Fuse::terminated() ，可以使用它构建一个空的 Future 
+// 空自然没啥用，但是如果它能在后面再被填充呢？
+
+// 考虑以下场景：当你要在 select 循环中运行一个任务，但是该任务却是在 select 循环内部创建时，上面的函数就非常好用了
+
+use futures::{future::{Fuse, FusedFuture}};
+
+async fn get_new_num() -> u8 { /* ... */ 5 }
+
+async fn run_on_new_num(_: u8) { /* ... */ }
+
+async fn run_loop(
+    mut interval_timer: impl Stream<Item = u8> + FusedStream + Unpin,
+    starting_num: u8
+) {
+    let run_on_new_num_fut = run_on_new_num(starting_num).fuse();
+    let get_new_num_fut = Fuse::terminated();
+    pin_mut!(run_on_new_num_fut, get_new_num_fut);
+
+    loop {
+        select! {
+            () = interval_timer.select_next_some() => {
+                if get_new_num_fut.is_terminated() {
+                    get_new_num_fut.set(get_new_num().fuse())
+                }
+            },
+            new_num = get_new_num_fut => {
+                run_on_new_num_fut.set(run_on_new_num().fuse())
+            },
+            () = run_on_new_num_fut => {},
+            complete => panic!("`interval_timer` completed unexpectedly")
+        }
+    }
+}
+
 
 use futures::future;
 

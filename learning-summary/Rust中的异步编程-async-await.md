@@ -14,3 +14,5 @@
 
 6. [Asynchronous Programming in Rust - 官方教程](https://rust-lang.github.io/async-book/01_getting_started/01_chapter.html)
 
+7. [Rust Async: 标准库futures api解析](https://zhuanlan.zhihu.com/p/66028983)
+

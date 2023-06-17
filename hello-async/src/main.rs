@@ -116,7 +116,7 @@ async fn handle_connection(mut stream: TcpStream) {
 
         // async_std 中的 task 模块中的 sleep 方法，不会阻塞线程
         // 这是一个异步函数，使用时需要加上 .await
-       task::sleep(Duration::from_secs(5)).await;
+       task::sleep(Duration::from_secs(10)).await;
         ("HTTP/1.1 200 OK\r\n\r\n", "hello.html")
     } else {
         ("HTTP/1.1 404 NOT FOUND\r\n\r\n", "404.html")

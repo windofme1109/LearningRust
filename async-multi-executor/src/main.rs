@@ -146,6 +146,7 @@ async fn race_task() {
 //    这样当 select 结束后，该 Future 若没有被完成，它的所有权还可以继续被其它代码使用
 // 2. FusedFuture 的原因跟上面类似，当 Future 一旦完成后，那 select 就不能再对其进行轮询使用
 //    Fuse 意味着熔断，相当于 Future 一旦完成，再次调用 poll 会直接返回 Poll::Pending
+//    实现了 FusedFuture 的 Future 会追踪其完成状态，这样在 select 循环中，就只会 poll 没有完成的 future
 // 只有实现了 FusedFuture，select 才能配合 loop 一起使用
 // 假如没有实现，就算一个 Future 已经完成了，它依然会被 select 不停的轮询执行
 

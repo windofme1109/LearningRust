@@ -38,11 +38,18 @@ impl TimerFuture {
                 waker: None
             }
         ));
-
+       println!(
+           "[{:?}] 开始创建新的 TimerFuture ...",
+           thread::current().id()
+       );
         let thread_shared_state = shared_state.clone();
 
         // 创建一个新的线程
         thread::spawn(move || {
+            println!(
+                "[{:?}] TimerFuture 生成新的线程并开始睡眠 ...",
+                thread::current().id()
+            );
             // 让线程休眠指定的时间，以实现定时功能
             thread::sleep(duration);
             // 继续通过 lock 方法获得一个互斥锁
@@ -51,10 +58,24 @@ impl TimerFuture {
             // 定时结束，向外发出通知
             // 可以继续 poll 对应的 Future
             shared_state.completed = true;
+
             if let Some(waker) = shared_state.waker.take() {
+                println!(
+                    "[{:?}] TimerFuture 新线程获得 waker，并进行 wake() ...",
+                    thread::current().id()
+                );
                 waker.wake();
+            } else {
+                println!(
+                    "[{:?}] TimerFuture 没有获得 waker ...",
+                    thread::current().id()
+                );
             }
         });
+       println!(
+           "[{:?}] 返回新的 TimerFuture ...",
+           thread::current().id()
+       );
 
         TimerFuture {
             shared_state
@@ -75,20 +96,35 @@ struct SharedState {
 impl Future for TimerFuture {
     type Output = ();
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+
+        println!(
+            "[{:?}] Polling TimerFuture ...",
+            thread::current().id()
+        );
+
         // lock 函数用来获取互斥锁，在获取过程中会阻塞当前的线程直到获取完成
         // 返回该互斥锁以后，该线程是唯一持有锁的线程
         let mut shared_state = self.shared_state.lock().unwrap();
 
         // 当 completed 为 true，说明定时器定时结束
         if shared_state.completed {
+            println!(
+                "[{:?}] TimerFuture completed ...",
+                thread::current().id()
+            );
             // 此时异步任务完成
             Poll::Ready(())
         } else {
+
+            println!(
+                "[{:?}] TimerFuture pending ...",
+                thread::current().id()
+            );
             // 当 completed 为 false，说明异步任务还没有结束
             // 我们需要设置 waker 函数
-            // 设置 waker，这样新线程在睡眠（计时）结束后可以唤醒当前的任务，接着再次对`Future`进行`poll`操作
+            // 设置 waker，这样新线程在睡眠（计时）结束后可以唤醒当前的任务，接着再次对 Future 进行 poll 操作
             // cx.waker() 会返回一个 Waker 的引用
-            // Waker 是一个句柄（handle），用于通过通知其执行者它已准备好运行来唤醒任务。
+            // Waker 是一个句柄（handle），用于通过通知其执行者它已准备好运行来唤醒任务
             // 这个句柄封装了一个 RawWaker 实例，它定义了执行器特定的唤醒行为
 
             // 下面的 clone 每次被 poll 时都会发生一次，实际上，应该是只 clone 一次更加合理

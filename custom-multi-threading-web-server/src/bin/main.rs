@@ -17,13 +17,15 @@ fn main() {
     let pool = ThreadPool::new(4);
 
 
-    for stream in listener.incoming() {
+    for stream in listener.incoming().take(2) {
         let s = stream.unwrap();
         pool.execute(|| {
             handle_coonection(s);
         });
         
     }
+
+    println!("Shutting Down.");
 
 }
 

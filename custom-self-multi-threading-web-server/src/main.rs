@@ -1,3 +1,4 @@
+use std::fs;
 use std::thread;
 use std::net::TcpListener;
 use std::net::TcpStream;
@@ -10,7 +11,9 @@ fn main() {
 
     for s in listener.incoming() {
         let stream = s.unwrap();
-        println!("request coming");
+        // println!("request coming");
+        
+        handle_request(stream);
     }
 }
 
@@ -21,5 +24,29 @@ fn handle_request(mut stream: TcpStream) {
     
     stream.read(&mut buffer).unwrap();
 
-    // buffer.starts_with(needle)
+    // let requestMethod = b"";
+
+    let reqText = String::from_utf8_lossy(&buffer[..]);
+    // println!("requset: {}", reqText);
+
+    let indexPath = "GET / HTTP/1.1\r\n";
+
+    let (status, path) = if reqText.starts_with(indexPath) {
+        ("HTTP/1.1 200 OK\r\n", "./resources/index.html")
+    } else {
+        ("HTTP/1.1 404 NOT FOUND\r\n", "./resources/404.html")
+    };
+
+    let content = fs::read_to_string(path).unwrap();
+
+    let length = content.len();
+
+    let contentLengthHeader = format!("content-length:{}\r\n\r\n", content);
+
+    let res = format!("{}{}{}", status, contentLengthHeader, content);
+
+    stream.write(res.as_bytes()).unwrap();
+
+    stream.flush();
+
 }

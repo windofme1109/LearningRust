@@ -17,10 +17,10 @@ fn main() {
     let pool = ThreadPool::new(4);
 
 
-    for stream in listener.incoming().take(2) {
+    for stream in listener.incoming() {
         let s = stream.unwrap();
         pool.execute(|| {
-            handle_coonection(s);
+            handle_connection(s);
         });
         
     }
@@ -29,7 +29,7 @@ fn main() {
 
 }
 
-fn handle_coonection(mut stream: TcpStream) {
+fn handle_connection(mut stream: TcpStream) {
     let mut buffer= [0; 1024];
     stream.read(&mut buffer).unwrap();
     

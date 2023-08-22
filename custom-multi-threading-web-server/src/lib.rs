@@ -47,7 +47,7 @@ impl ThreadPool {
 
         // 创建一个通道
         let (sender, receiver) = mpsc::channel();
-        // 使用Arc和Mutex在所有工作线程中共享通道的接收端
+        // 使用 Arc 和 Mutex 在所有工作线程中共享通道的接收端
         let receiver = Arc::new(Mutex::new(receiver));
 
         for id in 0..size {

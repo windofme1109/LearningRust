@@ -12,16 +12,18 @@ use custom_self_multi_threading_web_server::ThreadPool;
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:9009").unwrap();
     let pool = ThreadPool::new(4);
-    for s in listener.incoming() {
+
+    // 这里调用 take 方法，目的是生成一个指定数量元素的迭代器，这样就可以在收到指定数量的请求以后终止迭代
+    for s in listener.incoming().take(2) {
         let stream = s.unwrap();
         // println!("request coming");
 
         pool.execute(|| {
             handle_request(stream);
         });
-
-
     }
+
+    // ThreadPool 则会在main函数结束时离开作用域，并调用自己的 drop 实现
 }
 
 fn handle_request(mut stream: TcpStream) {
@@ -31,6 +33,7 @@ fn handle_request(mut stream: TcpStream) {
     
     stream.read(&mut buffer).unwrap();
 
+    println!("{}", String::from_utf8_lossy(&buffer));
 
     let reqText = String::from_utf8_lossy(&buffer[..]);
 

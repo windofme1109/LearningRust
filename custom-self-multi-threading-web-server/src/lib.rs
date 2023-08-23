@@ -22,13 +22,13 @@ type Job = Box< dyn FnOnce() + Send + 'static>;
 // Worker 持有真正的线程
 struct Worker {
     id: usize,
-    //
-    thread: thread::JoinHandle<()>,
+    // 使用 Option 包裹 thread，目的是可以在需要的时候，使用 take 方法将 thread 移出 Work，留下 None，从而 Worker 中就没有线程了，也不会在执行任何工作
+    thread: Option<thread::JoinHandle<()>>,
 }
 
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
-        println!("id {}", id);
+        // println!("id {}", id);
         let thread = thread::spawn(move || {
             loop {
                 // 下面这种先获取锁，再从锁中获取信息（通过 recv 方法实现）
@@ -55,10 +55,12 @@ impl Worker {
 
                 match msg {
                     Message::NewJob(job) => {
+                        println!("Worker {} got a job; executing.", id);
                         // 接收到闭包，开始执行
                         job();
                     },
                     Message::Terminated => {
+                        println!("Worker {} was told to terminate.", id);
                         // 收到终止信号，就跳出循环
                         break;
                     }
@@ -69,7 +71,7 @@ impl Worker {
 
         Worker {
             id,
-            thread,
+            thread: Some(thread)
         }
 
     }
@@ -82,7 +84,7 @@ impl ThreadPool {
         assert!(count > 0);
         
         let mut workers = Vec::with_capacity(count);
-        println!("count: {}", count);
+        // println!("count: {}", count);
         // 通道的接收端和发送端持有的类型必须相同
         let (sender, receiver) = mpsc::channel();
         let receiver = Arc::new(Mutex::new(receiver));
@@ -127,5 +129,19 @@ impl Drop for ThreadPool {
     fn drop(&mut self) {
         println!("Sending terminate message to all workers.");
         // 先发送一遍终止信号
+        // 保证终止信号发送的数量和现有的线程数量一致
+        // 单独使用一个循环，保证每个线程都能收到终止信号
+        for _ in &mut self.workers {
+            self.sender.send(Message::Terminated);
+        }
+        println!("Shutting down all workers");
+        for worker in &mut self.workers {
+            println!("Shutting down worker {}", worker.id);
+            if let Some(thread) =  worker.thread.take() {
+                // 等待线程结束
+                thread.join().unwrap()
+            }
+        }
+
     }
 }

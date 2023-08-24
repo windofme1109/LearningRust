@@ -55,7 +55,7 @@ impl Drop for ThreadPool {
         // 首先遍历了线程池中所有的workers
         // 这里使用了 &mut，因为我们需要修改 worker 且正好 self 本身是一个可变引用
         // 针对遍历中的每一个 worker，代码会打印出信息来表明当前的 worker 正在停止运行
-        // 并会接着在它的线程上调用join
+        // 并会接着在它的线程上调用 join
         // 假如 join 调用失败，随后的 unwrap 就会触发 panic 并进入不那么优雅的关闭过程
         //
         // 第二次则在每个 worker 的线程上调用了 join
@@ -123,7 +123,10 @@ impl Worker {
     // 将 receiver 的类型中的 Job 修改为 Message
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
         let thread = thread::spawn(move || {
+            // println!("initiate work {}", id);
             loop {
+                // println!("received work {}", id);
+
 
                 // 首先调用了 receiver 的 lock 方法来请求互斥锁
                 // 并接着使用 unwrap 来处理可能出现的错误情形
@@ -137,7 +140,7 @@ impl Worker {
 
                 // let job = receiver.lock().unwrap().recv().unwrap();
                 let message = receiver.lock().unwrap().recv().unwrap();
-
+                
                 // 因为 execute 方法会发送包裹着任务的 Message:NewJob 变体
                 // Worker::new 中的代码会从通道中接收并处理 Message，
                 // 并在收到 NewJob 变体时处理任务，在收到 Terminate 变体时退出循环

@@ -16,7 +16,8 @@ fn main() {
 
     let pool = ThreadPool::new(4);
 
-
+    // take 方法接收一个整数，用来限制生成的迭代器的元素数量
+    // 这里我们限制只能接收两个请求，也就是说，接收完两个请求，就会退出当前的循环
     for stream in listener.incoming().take(2) {
         let s = stream.unwrap();
         pool.execute(|| {

@@ -40,18 +40,21 @@ fn main() {
     // 而 ThreadPool 则会在 main 函数结束时离开作用域，并调用自己的 drop 实现
     for stream in linstener.incoming().take(2) {
         let stream = stream.unwrap();
-            // println!("Connection established");
+        // println!("connected");
+            println!("Connection established");
         // 为每个连接都创建一个线程去处理
         // execute 方法接收一个闭包，并将它分配给线程池中的线程去执行
         pool.execute(|| {
             // handle_connection(stream);
             
-
+            
             // 从 tcp 流中读取数据
             handle_connection(stream);
         });
         
     }
+
+    println!("iteration completed");
 }
 
 

@@ -1,39 +1,62 @@
 use std::thread;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
 use std::time::Duration;
 
+
+/**
+ * 多线程之间的通信 - Channel
+ */
 fn main() {
+    let (tx, rx) = mpsc::channel();
 
-    // 多线程练习
 
-    let join_handler = thread::spawn(|| {
-        
-        for i in 1..10 {
-            println!("hi number {} from the spawned thread!", i);
-            thread::sleep(Duration::from_millis(100));
+    let tx1 = mpsc::Sender::clone(&tx);
+    thread::spawn(move || {
+        // let msg = String::from("hello world");
+        // tx.send(msg).unwrap();
+
+        let msg_list = vec![
+            String::from("hi"),
+            String::from("from"),
+            String::from("the"),
+            String::from("thread"),
+        ];
+
+        for msg in msg_list {
+            tx1.send(msg);
+            thread::sleep(Duration::from_millis(1000));
         }
-        
-        // println!("hello thread");
+
+
+
+        // println!("msg is {}", msg);
     });
 
+    thread::spawn(move || {
+        // let msg = String::from("hello world");
+        // tx.send(msg).unwrap();
 
-    // 调用 join 方法，会阻塞当前的线程，直到调用 join 方法的线程执行完任务
-    // 然后被阻塞的线程（这里是 main 线程）才会开始执行
-    // join_handler.join();
+        let msg_list = vec![
+            String::from("more"),
+            String::from("message"),
+            String::from("for"),
+            String::from("you"),
+        ];
 
-    
-    // 正常来说，主线程执行结束，就会终止其他线程，无论其他线程是否存在执行的任务
-    for i in 1..5 {
-        println!("hi number {} from the main thread!", i);
-        thread::sleep(Duration::from_millis(100));
+        for msg in msg_list {
+            tx.send(msg);
+            thread::sleep(Duration::from_millis(1000));
+        }
+
+
+
+        // println!("msg is {}", msg);
+    });
+    // let res = rx.recv().unwrap();
+
+    // println!("info is: {}", res);
+   
+    for recv_msg in rx {
+        println!("received msg is: {}", recv_msg);
     }
-    // 调用 join 方法的位置不同，会得到不同的执行效果
-    // 因为主线程会在调用 join 方法的地方阻塞
-    // 在子线程结束之前，join 方法后的主线程代码不会执行
-    // 子线程结束以后，主线程才会继续向下执行 
-    join_handler.join();
-    // 所以，在主线程的 for 循环后调用 join
-    // 可以实现主线程和子线程的交叉打印
-    // 等到主线程打印完成，就专注打印新线程的东西
-    // 主线程只会在新线程运行结束后退出
 }

@@ -1,62 +1,40 @@
+use std::sync::{Mutex, Arc};
+use std::rc::Rc;
 use std::thread;
-use std::sync::mpsc;
-use std::time::Duration;
 
 
-/**
- * 多线程之间的通信 - Channel
- */
 fn main() {
-    let (tx, rx) = mpsc::channel();
+    // let m = Mutex::new(5);
+    // {
+    //     let mut num = m.lock().unwrap();
 
+    //     *num = 6;
+    // }
 
-    let tx1 = mpsc::Sender::clone(&tx);
-    thread::spawn(move || {
-        // let msg = String::from("hello world");
-        // tx.send(msg).unwrap();
+    // println!("num is {:?}", m);
 
-        let msg_list = vec![
-            String::from("hi"),
-            String::from("from"),
-            String::from("the"),
-            String::from("thread"),
-        ];
+    // let counter = Rc::new(Mutex::new(0));
+    let counter = Arc::new(Mutex::new(0));
+ 
+    let mut handles = vec![];
+    for _ in 0..10 {
+        // let counter = Rc::clone(&counter);
+        let counter = Arc::clone(&counter);
+        let handle = thread::spawn(move || {
+            let mut num = counter.lock().unwrap();
 
-        for msg in msg_list {
-            tx1.send(msg);
-            thread::sleep(Duration::from_millis(1000));
-        }
+            *num = *num + 1;
+            
+        });
 
-
-
-        // println!("msg is {}", msg);
-    });
-
-    thread::spawn(move || {
-        // let msg = String::from("hello world");
-        // tx.send(msg).unwrap();
-
-        let msg_list = vec![
-            String::from("more"),
-            String::from("message"),
-            String::from("for"),
-            String::from("you"),
-        ];
-
-        for msg in msg_list {
-            tx.send(msg);
-            thread::sleep(Duration::from_millis(1000));
-        }
-
-
-
-        // println!("msg is {}", msg);
-    });
-    // let res = rx.recv().unwrap();
-
-    // println!("info is: {}", res);
-   
-    for recv_msg in rx {
-        println!("received msg is: {}", recv_msg);
+        handles.push(handle);
     }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+
+    println!("Result: {}", *counter.lock().unwrap())
+
 }

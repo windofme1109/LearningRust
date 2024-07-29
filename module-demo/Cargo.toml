@@ -1,0 +1,11 @@
+[package]
+name = "module-demo"
+version = "0.1.0"
+edition = "2021"
+
+
+# [lib]
+# name="my_user"
+# path = "src/my_user/mod.rs"
+
+[dependencies]

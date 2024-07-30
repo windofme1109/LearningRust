@@ -150,10 +150,70 @@ pub fn my_user() {
 ```
 
 2. 使用 `path` 属性指定外部模块路径有以下几种方式：
-   -  直接指定 rs 文件，即 rs 文件作为模块
-   - 指定某个目录下的 mod.rs 文件
+   -  直接指定 rs 文件，即 rs 文件作为模块。
+   - 指定某个目录下的 mod.rs 文件。
 
 3. `path` 一般使用相对路径，其相对的起点是当前的文件所在的目录，本例中，是 `custom_user.rs` 所在的目录。
 
 
 4. 关于 `path` 属性的详解：[path attribute](https://doc.rust-lang.org/reference/items/modules.html#the-path-attribute)
+
+## 7. bin 目录下引用外部模块方式
+
+1. 在 bin 目录下，引用外部模块的方式也有两种：
+   - 绝对路径
+   - path 属性
+
+2. 整体的目录结构如下所示：
+```
+ src
+ ├── bin
+     ├── service.rs
+ ├── foo2
+     ├── foo_mod1.rs
+     ├── foo_mod2.rs
+     ├── mod.rs
+ ├── my_content
+     ├── custom_content.rs
+     ├── mod.rs
+```
+
+### 1. 绝对路径
+
+1. 使用绝对路径的方式引用 `foo2` 下定义的模块：
+```rs
+use module_demo::foo2::foo_mod1;
+
+fn main() {
+
+    foo_mod1::hello_foo_mod1();
+
+    println!("hello service");
+}
+
+```
+
+2. 注意，绝对路径的起点是根节点，即 crate 名，这里是 `module_demo`。
+
+
+### 2. path 属性
+
+1. 使用 `path` 属性，结合 `pub mod xxxx`，即可声明外部模块。
+```rs
+
+#[path ="../my_content/mod.rs"]
+mod my_content;
+
+
+fn main() {
+
+    my_content::custom_content::my_content();
+    println!("hello service");
+}
+```
+
+2. 使用 `path` 属性指定外部模块路径有以下几种方式：
+   -  直接指定 rs 文件，即 rs 文件作为模块。
+   - 指定某个目录下的 `mod.rs` 文件。
+
+3. `path` 一般使用相对路径，其相对的起点是当前的文件所在的目录，本例中，是 `service.rs` 所在的目录。

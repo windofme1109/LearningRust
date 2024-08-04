@@ -6,7 +6,7 @@
 use module_demo::foo2::foo_mod1;
 use module_demo::foo;
 
-
+use module_demo::foo;
 
 #[path ="../my_content/mod.rs"]
 mod my_content;

@@ -98,6 +98,14 @@ pub fn custom_user() {
 }
 
 ```
+
+2. 使用绝对路径的前提是：这个是一个 library crate，即 `src` 目录中存在 `lib.rs` 文件，且需要引用的模块在 `lib.rs` 中声明。
+``` rs
+// src/lib.rs
+pub  mod module_demo;
+
+```
+
 2. 在某个模块内，使用 `pub mod xxxx` 声明某个外部模块，那么 rust 就会去在同级目录下，去寻找 `xxxx.rs` 或者是 `xxxx/mod.rs`
 3. 举个例子，在 `my_user/custom_user.rs` 声明一个模块 my_log： 
 ```
@@ -161,7 +169,7 @@ pub fn my_user() {
 ## 7. bin 目录下引用外部模块方式
 
 1. 在 bin 目录下，引用外部模块的方式也有两种：
-   - 绝对路径
+   - 绝对路径（需要在 `src/lib.rs` 下声明 crate 名）
    - path 属性
 
 2. 整体的目录结构如下所示：
